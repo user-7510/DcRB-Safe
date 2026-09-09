@@ -1,0 +1,9 @@
+discord.py
+aiohttp
+psutil
+pyautogui
+mss
+pygetwindow
+pycaw
+keyboard
+Pillow
