@@ -1,0 +1,9 @@
+{
+  "version": "6.0.0",
+  "enabledModules": [
+    "authModule",
+    "controlModule",
+    "systemModule",
+    "eventModule"
+  ]
+}
