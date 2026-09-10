@@ -77,6 +77,7 @@ class ControlCog(commands.Cog):
         threading.Thread(target=monitorLoopTask, daemon=True).start()
 
     @app_commands.command(name="change_password", description="修改控制指令密碼")
+    @app_commands.rename(newPassword="new_password")
     async def changePasswordCommand(self, interaction: discord.Interaction, newPassword: str, password: str = "admin"):
         if not self.verifyPassword(password):
             return await interaction.response.send_message("密碼錯誤，無法修改密碼。", ephemeral=True)
