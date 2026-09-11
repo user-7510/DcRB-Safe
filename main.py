@@ -4,11 +4,29 @@ import json
 import platform
 import importlib
 import multiprocessing
+import re
+import inspect
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 dcrbVersion = "6.0.0"
+
+class StartupFakeResponse:
+    async def send_message(self, content=None, *, ephemeral=False, **kwargs):
+        print(f"[開機指令輸出] {content}")
+
+    async def defer(self, *, thinking=False):
+        pass
+
+class StartupFakeFollowup:
+    async def send(self, **kwargs):
+        print("[開機指令輸出] 指令執行完畢。")
+
+class StartupFakeInteraction:
+    def __init__(self):
+        self.response = StartupFakeResponse()
+        self.followup = StartupFakeFollowup()
 
 class BotRunner(commands.Bot):
     def __init__(self, **kwargs):
@@ -23,6 +41,8 @@ class BotRunner(commands.Bot):
         self.tree.on_error = self.onAppCommandError
         syncedCmds = await self.tree.sync()
         print(f"[資訊] 成功同步 {len(syncedCmds)} 個應用程式指令")
+        
+        await self.executeStartupConfig()
 
     def detectEnvironmentConfig(self) -> str:
         currentOs = platform.system()
@@ -67,6 +87,57 @@ class BotRunner(commands.Bot):
                 print(f"[模組] 模組 {moduleName} 載入成功")
             except Exception as errObj:
                 print(f"[錯誤] 載入模組 {moduleName} 失敗: {errObj}")
+
+    async def executeStartupConfig(self):
+        if not os.path.exists("config.txt"):
+            return
+        with open("config.txt", "r", encoding="utf-8") as fileObj:
+            contentStr = fileObj.read().strip()
+        if not contentStr.startswith("--"):
+            return
+            
+        controlCogObj = self.get_cog("ControlCog")
+        if not controlCogObj:
+            return
+            
+        cmdDict = {}
+        cogCmds = getattr(controlCogObj, "get_app_commands", None)
+        if callable(cogCmds):
+            cmdDict = {cmdObj.name: cmdObj for cmdObj in cogCmds()}
+        elif hasattr(controlCogObj, "__cog_app_commands__"):
+            cmdDict = {cmdObj.name: cmdObj for cmdObj in controlCogObj.__cog_app_commands__}
+
+        for segStr in [s.strip() for s in contentStr.split("--") if s.strip()]:
+            matchObj = re.match(r"^(\w+)(?:\((.*?)\))?$", segStr)
+            if not matchObj:
+                continue
+
+            cmdName = matchObj.group(1).lower()
+            paramStr = matchObj.group(2)
+            paramsDict = {}
+            if paramStr:
+                for p in paramStr.split(","):
+                    if "=" in p:
+                        k, v = p.split("=", 1)
+                        paramsDict[k.strip()] = v.strip()
+
+            if cmdName in cmdDict:
+                targetCmd = cmdDict[cmdName]
+                sigObj = inspect.signature(targetCmd.callback)
+                kwargsDict = {}
+
+                for paramName, paramVal in paramsDict.items():
+                    if paramName in sigObj.parameters:
+                        annoType = sigObj.parameters[paramName].annotation
+                        if annoType is float:
+                            kwargsDict[paramName] = float(paramVal)
+                        elif annoType is int:
+                            kwargsDict[paramName] = int(paramVal)
+                        else:
+                            kwargsDict[paramName] = paramVal
+
+                fakeInterObj = StartupFakeInteraction()
+                await targetCmd.callback(controlCogObj, fakeInterObj, **kwargsDict)
 
     async def on_interaction(self, interaction: discord.Interaction):
         if interaction.type == discord.InteractionType.application_command:

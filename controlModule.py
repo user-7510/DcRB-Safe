@@ -277,7 +277,7 @@ class ControlCog(commands.Cog):
             await interaction.response.send_message("已設定開機自動啟動。")
         except Exception as errObj:
             await interaction.response.send_message(f"設定失敗：{errObj}", ephemeral=True)
-
+"""
     @app_commands.command(name="shutdown", description="關閉電腦")
     async def shutdownCommand(self, interaction: discord.Interaction, password: str = "admin"):
         if not self.verifyPassword(password):
@@ -302,6 +302,6 @@ class ControlCog(commands.Cog):
             await interaction.response.send_message("已強制終止命令提示字元與工作管理員。")
         else:
             await interaction.response.send_message("此指令僅支援 Windows 系統。")
-
+"""
 async def setup(botObj: commands.Bot):
     await botObj.add_cog(ControlCog(botObj))
