@@ -73,7 +73,6 @@ class BotRunner(commands.Bot):
             commandName = interaction.data.get("name", "unknown")
             userName = interaction.user.name
             print(f"[指令] 收到來自使用者 {userName} 的指令: /{commandName}")
-        await super().on_interaction(interaction)
 
     async def onAppCommandError(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         commandName = interaction.command.name if interaction.command else "未知"

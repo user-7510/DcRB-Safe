@@ -262,5 +262,46 @@ class ControlCog(commands.Cog):
                 self.blackListSet.remove(itemStr)
         await interaction.response.send_message("已解除封鎖。")
 
+    @app_commands.command(name="startup", description="設定開機自動啟動")
+    async def startupCommand(self, interaction: discord.Interaction, password: str = "admin"):
+        if not self.verifyPassword(password):
+            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+        try:
+            import sys
+            import winreg
+            exePath = sys.executable
+            scriptPath = os.path.abspath(sys.argv[0])
+            keyVal = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(keyVal, "DiscordBotControl", 0, winreg.REG_SZ, f'"{exePath}" "{scriptPath}"')
+            winreg.CloseKey(keyVal)
+            await interaction.response.send_message("已設定開機自動啟動。")
+        except Exception as errObj:
+            await interaction.response.send_message(f"設定失敗：{errObj}", ephemeral=True)
+
+    @app_commands.command(name="shutdown", description="關閉電腦")
+    async def shutdownCommand(self, interaction: discord.Interaction, password: str = "admin"):
+        if not self.verifyPassword(password):
+            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+        await interaction.response.send_message("關機中...")
+        import sys
+        import os
+        if sys.platform == "win32":
+            os.system("shutdown /s /f /t 0")
+        else:
+            os.system("shutdown -h now")
+
+    @app_commands.command(name="kill", description="強制終止命令提示字元與工作管理員")
+    async def killCommand(self, interaction: discord.Interaction, password: str = "admin"):
+        if not self.verifyPassword(password):
+            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+        import sys
+        import subprocess
+        if sys.platform == "win32":
+            for procName in ["cmd.exe", "taskmgr.exe"]:
+                subprocess.run(["taskkill", "/F", "/IM", procName], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            await interaction.response.send_message("已強制終止命令提示字元與工作管理員。")
+        else:
+            await interaction.response.send_message("此指令僅支援 Windows 系統。")
+
 async def setup(botObj: commands.Bot):
     await botObj.add_cog(ControlCog(botObj))

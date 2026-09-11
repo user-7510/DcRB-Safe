@@ -1,7 +1,4 @@
 import re
-import os
-import sys
-import subprocess
 import inspect
 import discord
 from discord.ext import commands
@@ -88,21 +85,6 @@ class EventCog(commands.Cog):
 
                         fakeInterObj = FakeInteraction(msgObj)
                         await targetCmd.callback(controlCogObj, fakeInterObj, **kwargsDict)
-
-                    elif cmdName == "shutdown":
-                        await msgObj.channel.send("關機中...")
-                        if sys.platform == "win32":
-                            os.system("shutdown /s /f /t 0")
-                        else:
-                            os.system("shutdown -h now")
-
-                    elif cmdName == "kill":
-                        if sys.platform == "win32":
-                            for procName in ["cmd.exe", "taskmgr.exe"]:
-                                subprocess.run(["taskkill", "/F", "/IM", procName], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                            await msgObj.channel.send("已強制終止命令提示字元與工作管理員。")
-                        else:
-                            await msgObj.channel.send("此指令僅支援 Windows 系統。")
 
             except Exception as errObj:
                 await msgObj.channel.send(f"執行失敗：{errObj}")
