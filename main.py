@@ -25,8 +25,7 @@ class BotRunner(commands.Bot):
         self.tree.on_error = self.onAppCommandError
         syncedCmds = await self.tree.sync()
         print(f"[資訊] 成功同步 {len(syncedCmds)} 個應用程式指令")
-        
-        await self.executeStartupConfig()
+        self.loop.create_task(self.executeStartupConfig())
 
     def detectEnvironmentConfig(self) -> str:
         currentOs = platform.system()
@@ -73,6 +72,7 @@ class BotRunner(commands.Bot):
                 print(f"[錯誤] 載入模組 {moduleName} 失敗: {errObj}")
 
     async def executeStartupConfig(self):
+        await self.wait_until_ready()
         if not os.path.exists("config.json"):
             return
             
