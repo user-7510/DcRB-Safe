@@ -8,11 +8,15 @@
 
 ---
 
-VersionVI 更新摘要：根據 Linux 作業系統與環境差異（GUI 桌面環境與無介面 TTY 模式），系統可透過 `platform.system()` 與環境變數 `DISPLAY` / `WAYLAND_DISPLAY` 進行自動辨識並載入適配模組。
+VersionVI - 升級更新摘要：
+1. **指令衝突與跨模組相依性修正**：消除了原本相同命名指令在內部呼叫上的衝突，並支援全域遍歷跨模組 (Cogs) 的動態指令呼叫。
+2. **開機啟動設定配置升級**：系統 `/startup` 格式由 `config.txt` 轉為以 JSON (`config.json`) 儲存，且支援綁定設定該開機指令的 Discord 伺服器 (Server ID)；重啟後開機指令輸出結果將準確回傳至該伺服器對應的權限頻道。
+3. **Event 參數防呆機制**：輸入 `--指令名稱` 事件指令若缺少必要參數時，不會再被無聲吞沒報錯，而是會自動回傳該指令所需的參數提示與範例。
+4. **OS 環境自動偵測**：根據 Linux 作業系統與環境差異（GUI 桌面環境與無介面 TTY 模式），系統可透過 `platform.system()` 與環境變數 `DISPLAY` / `WAYLAND_DISPLAY` 進行自動辨識並載入適配模組。
 
 ---
 
-# DcRB (Discord Remote Bot) VersionVI README
+# DcRB (Discord Remote Bot) README
 
 DcRB 為基於 Discord API 構建的遠端自動化管理系統。支援 Windows 與 Linux（桌面環境及純 TTY 終端機）雙系統自動識別與動態模組載入。
 
@@ -30,7 +34,13 @@ DcRB 為基於 Discord API 構建的遠端自動化管理系統。支援 Windows
 ```bash
 pip install discord.py aiohttp psutil pyautogui mss pygetwindow pycaw keyboard Pillow
 python main.py
+
 ```
 
 行 1：安裝專案運作所需之所有第三方套件，包含處理圖片通知必備的 Pillow。
 行 2：啟動主執行緒，系統將自動判斷作業系統並對應載入組態。
+
+## 事件指令與自動執行 (JSON組態)
+
+* 您可於任一文字頻道輸入 `--cmdName(param=value, ...)` 來快速執行事件。當未輸入必要參數時，機器人會智慧回傳語法提示與範例。
+* 透過 `/startup` 指令設定的開機指令會自動儲存於 `config.json` 中，並記錄當前伺服器 ID。下次程式啟動時，機器人會在該伺服器自動還原執行狀態並發送執行結果。

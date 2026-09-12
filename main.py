@@ -12,22 +12,6 @@ from discord.ext import commands
 
 dcrbVersion = "6.0.0"
 
-class StartupFakeResponse:
-    async def send_message(self, content=None, *, ephemeral=False, **kwargs):
-        print(f"[開機指令輸出] {content}")
-
-    async def defer(self, *, thinking=False):
-        pass
-
-class StartupFakeFollowup:
-    async def send(self, **kwargs):
-        print("[開機指令輸出] 指令執行完畢。")
-
-class StartupFakeInteraction:
-    def __init__(self):
-        self.response = StartupFakeResponse()
-        self.followup = StartupFakeFollowup()
-
 class BotRunner(commands.Bot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -89,23 +73,69 @@ class BotRunner(commands.Bot):
                 print(f"[錯誤] 載入模組 {moduleName} 失敗: {errObj}")
 
     async def executeStartupConfig(self):
-        if not os.path.exists("config.txt"):
-            return
-        with open("config.txt", "r", encoding="utf-8") as fileObj:
-            contentStr = fileObj.read().strip()
-        if not contentStr.startswith("--"):
+        if not os.path.exists("config.json"):
             return
             
-        controlCogObj = self.get_cog("ControlCog")
-        if not controlCogObj:
+        try:
+            with open("config.json", "r", encoding="utf-8") as fileObj:
+                configData = json.load(fileObj)
+        except Exception as e:
+            print(f"[錯誤] 無法讀取 config.json: {e}")
             return
             
+        contentStr = configData.get("content", "").strip()
+        guildId = configData.get("guild_id")
+        
+        if not contentStr.startswith("--") or not guildId:
+            return
+            
+        guildObj = self.get_guild(guildId)
+        if not guildObj:
+            print(f"[警告] 找不到伺服器 ID: {guildId}，開機指令取消執行。")
+            return
+            
+        channelObj = guildObj.system_channel
+        if not channelObj or not channelObj.permissions_for(guildObj.me).send_messages:
+            for channel in guildObj.text_channels:
+                if channel.permissions_for(guildObj.me).send_messages:
+                    channelObj = channel
+                    break
+
+        class StartupRealResponse:
+            async def send_message(self, content=None, *, ephemeral=False, **kwargs):
+                if channelObj:
+                    await channelObj.send(content=content, **kwargs)
+                else:
+                    print(f"[開機指令輸出] {content}")
+
+            async def defer(self, *, thinking=False):
+                pass
+
+        class StartupRealFollowup:
+            async def send(self, **kwargs):
+                if channelObj:
+                    await channelObj.send(**kwargs)
+                else:
+                    print("[開機指令輸出] 指令執行完畢。")
+
+        class StartupRealInteraction:
+            def __init__(self):
+                self.response = StartupRealResponse()
+                self.followup = StartupRealFollowup()
+                self.guild = guildObj
+                self.guild_id = guildId
+                self.channel = channelObj
+                self.user = guildObj.me
+                self.client = guildObj._state._get_client() if hasattr(guildObj, '_state') else None
+
         cmdDict = {}
-        cogCmds = getattr(controlCogObj, "get_app_commands", None)
-        if callable(cogCmds):
-            cmdDict = {cmdObj.name: cmdObj for cmdObj in cogCmds()}
-        elif hasattr(controlCogObj, "__cog_app_commands__"):
-            cmdDict = {cmdObj.name: cmdObj for cmdObj in controlCogObj.__cog_app_commands__}
+        for cogName in self.cogs:
+            cogObj = self.get_cog(cogName)
+            cogCmds = getattr(cogObj, "get_app_commands", None)
+            if callable(cogCmds):
+                cmdDict.update({cmdObj.name: (cmdObj, cogObj) for cmdObj in cogCmds()})
+            elif hasattr(cogObj, "__cog_app_commands__"):
+                cmdDict.update({cmdObj.name: (cmdObj, cogObj) for cmdObj in cogObj.__cog_app_commands__})
 
         for segStr in [s.strip() for s in contentStr.split("--") if s.strip()]:
             matchObj = re.match(r"^(\w+)(?:\((.*?)\))?$", segStr)
@@ -114,30 +144,52 @@ class BotRunner(commands.Bot):
 
             cmdName = matchObj.group(1).lower()
             paramStr = matchObj.group(2)
-            paramsDict = {}
-            if paramStr:
-                for p in paramStr.split(","):
-                    if "=" in p:
-                        k, v = p.split("=", 1)
-                        paramsDict[k.strip()] = v.strip()
-
+            
             if cmdName in cmdDict:
-                targetCmd = cmdDict[cmdName]
+                targetCmd, targetCog = cmdDict[cmdName]
                 sigObj = inspect.signature(targetCmd.callback)
-                kwargsDict = {}
+                
+                data_params = [p for p in sigObj.parameters.values() if p.name not in ('self', 'interaction')]
+                all_params_str = ", ".join([f"{p.name}" + (f"={p.default}" if p.default != inspect.Parameter.empty else "") for p in data_params])
+                required_params = [p for p in data_params if p.default == inspect.Parameter.empty and p.name != "image"]
+                
+                if not paramStr:
+                    if required_params:
+                        example_args = ", ".join(f"{p.name}=值" for p in required_params)
+                        help_msg = f"【開機指令提示】指令 `--{cmdName}` 缺少參數。\n**語法**：`--{cmdName}({all_params_str})`\n**範例**：`--{cmdName}({example_args})`"
+                        if channelObj:
+                            await channelObj.send(help_msg)
+                        print(help_msg)
+                        continue
+                    paramsDict = {}
+                else:
+                    paramsDict = {}
+                    for p in paramStr.split(","):
+                        if "=" in p:
+                            k, v = p.split("=", 1)
+                            paramsDict[k.strip()] = v.strip()
 
+                kwargsDict = {}
                 for paramName, paramVal in paramsDict.items():
                     if paramName in sigObj.parameters:
                         annoType = sigObj.parameters[paramName].annotation
                         if annoType is float:
-                            kwargsDict[paramName] = float(paramVal)
+                            try: kwargsDict[paramName] = float(paramVal)
+                            except ValueError: pass
                         elif annoType is int:
-                            kwargsDict[paramName] = int(paramVal)
+                            try: kwargsDict[paramName] = int(paramVal)
+                            except ValueError: pass
                         else:
                             kwargsDict[paramName] = paramVal
 
-                fakeInterObj = StartupFakeInteraction()
-                await targetCmd.callback(controlCogObj, fakeInterObj, **kwargsDict)
+                fakeInterObj = StartupRealInteraction()
+                try:
+                    await targetCmd.callback(targetCog, fakeInterObj, **kwargsDict)
+                except Exception as e:
+                    err_msg = f"[開機指令錯誤] 執行 `--{cmdName}` 失敗: {e}"
+                    print(err_msg)
+                    if channelObj:
+                        await channelObj.send(err_msg)
 
     async def on_interaction(self, interaction: discord.Interaction):
         if interaction.type == discord.InteractionType.application_command:

@@ -262,21 +262,6 @@ class ControlCog(commands.Cog):
                 self.blackListSet.remove(itemStr)
         await interaction.response.send_message("已解除封鎖。")
 
-    @app_commands.command(name="startup", description="設定開機自動啟動")
-    async def startupCommand(self, interaction: discord.Interaction, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
-        try:
-            import sys
-            import winreg
-            exePath = sys.executable
-            scriptPath = os.path.abspath(sys.argv[0])
-            keyVal = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
-            winreg.SetValueEx(keyVal, "DiscordBotControl", 0, winreg.REG_SZ, f'"{exePath}" "{scriptPath}"')
-            winreg.CloseKey(keyVal)
-            await interaction.response.send_message("已設定開機自動啟動。")
-        except Exception as errObj:
-            await interaction.response.send_message(f"設定失敗：{errObj}", ephemeral=True)
 """
     @app_commands.command(name="shutdown", description="關閉電腦")
     async def shutdownCommand(self, interaction: discord.Interaction, password: str = "admin"):

@@ -42,14 +42,14 @@ class EventCog(commands.Cog):
         contentStr = msgObj.content
         if contentStr and contentStr.strip().startswith("--"):
             try:
-                controlCogObj = self.bot.get_cog("ControlCog")
                 cmdDict = {}
-                if controlCogObj:
-                    cogCmds = getattr(controlCogObj, "get_app_commands", None)
+                for cogName in self.bot.cogs:
+                    cogObj = self.bot.get_cog(cogName)
+                    cogCmds = getattr(cogObj, "get_app_commands", None)
                     if callable(cogCmds):
-                        cmdDict = {cmdObj.name: cmdObj for cmdObj in cogCmds()}
-                    elif hasattr(controlCogObj, "__cog_app_commands__"):
-                        cmdDict = {cmdObj.name: cmdObj for cmdObj in controlCogObj.__cog_app_commands__}
+                        cmdDict.update({cmdObj.name: (cmdObj, cogObj) for cmdObj in cogCmds()})
+                    elif hasattr(cogObj, "__cog_app_commands__"):
+                        cmdDict.update({cmdObj.name: (cmdObj, cogObj) for cmdObj in cogObj.__cog_app_commands__})
 
                 for segStr in [s.strip() for s in contentStr.strip().split("--") if s.strip()]:
                     matchObj = re.match(r"^(\w+)(?:\((.*?)\))?$", segStr)
@@ -58,25 +58,39 @@ class EventCog(commands.Cog):
 
                     cmdName = matchObj.group(1).lower()
                     paramStr = matchObj.group(2)
-                    paramsDict = {}
-                    if paramStr:
-                        for p in paramStr.split(","):
-                            if "=" in p:
-                                k, v = p.split("=", 1)
-                                paramsDict[k.strip()] = v.strip()
-
+                    
                     if cmdName in cmdDict:
-                        targetCmd = cmdDict[cmdName]
+                        targetCmd, targetCog = cmdDict[cmdName]
                         sigObj = inspect.signature(targetCmd.callback)
-                        kwargsDict = {}
+                        
+                        data_params = [p for p in sigObj.parameters.values() if p.name not in ('self', 'interaction')]
+                        all_params_str = ", ".join([f"{p.name}" + (f"={p.default}" if p.default != inspect.Parameter.empty else "") for p in data_params])
+                        required_params = [p for p in data_params if p.default == inspect.Parameter.empty and p.name != "image"]
 
+                        if not paramStr:
+                            if required_params:
+                                example_args = ", ".join(f"{p.name}=值" for p in required_params)
+                                help_msg = f"【提示】指令 `--{cmdName}` 需要參數。\n**語法**：`--{cmdName}({all_params_str})`\n**範例**：`--{cmdName}({example_args})`"
+                                await msgObj.channel.send(help_msg)
+                                continue
+                            paramsDict = {}
+                        else:
+                            paramsDict = {}
+                            for p in paramStr.split(","):
+                                if "=" in p:
+                                    k, v = p.split("=", 1)
+                                    paramsDict[k.strip()] = v.strip()
+
+                        kwargsDict = {}
                         for paramName, paramVal in paramsDict.items():
                             if paramName in sigObj.parameters:
                                 annoType = sigObj.parameters[paramName].annotation
                                 if annoType is float:
-                                    kwargsDict[paramName] = float(paramVal)
+                                    try: kwargsDict[paramName] = float(paramVal)
+                                    except ValueError: pass
                                 elif annoType is int:
-                                    kwargsDict[paramName] = int(paramVal)
+                                    try: kwargsDict[paramName] = int(paramVal)
+                                    except ValueError: pass
                                 else:
                                     kwargsDict[paramName] = paramVal
 
@@ -84,7 +98,7 @@ class EventCog(commands.Cog):
                             kwargsDict["image"] = msgObj.attachments[0]
 
                         fakeInterObj = FakeInteraction(msgObj)
-                        await targetCmd.callback(controlCogObj, fakeInterObj, **kwargsDict)
+                        await targetCmd.callback(targetCog, fakeInterObj, **kwargsDict)
 
             except Exception as errObj:
                 await msgObj.channel.send(f"執行失敗：{errObj}")

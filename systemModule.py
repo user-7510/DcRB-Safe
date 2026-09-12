@@ -4,6 +4,7 @@ import uuid
 import socket
 import platform
 import subprocess
+import json
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -53,16 +54,20 @@ class SystemCog(commands.Cog):
         volInterface.SetMasterVolumeLevelScalar(targetVol, None)
         await interaction.response.send_message(f"音量設為 {int(targetVol * 100)}%")
 
-    @app_commands.command(name="startup", description="寫入開機指令")
+    @app_commands.command(name="startup", description="寫入開機指令 (綁定伺服器)")
     async def startupCommand(self, interaction: discord.Interaction, content: str):
+        configData = {
+            "guild_id": interaction.guild_id,
+            "content": content
+        }
         try:
-            with open("config.txt", "w", encoding="utf-8") as fileObj:
-                fileObj.write(content.strip())
-            await interaction.response.send_message("已寫入組態。")
+            with open("config.json", "w", encoding="utf-8") as fileObj:
+                json.dump(configData, fileObj, ensure_ascii=False, indent=4)
+            await interaction.response.send_message("已成功寫入開機自動執行組態 (JSON)。")
         except Exception as errObj:
-            await interaction.response.send_message(f"失敗：{errObj}")
+            await interaction.response.send_message(f"寫入失敗：{errObj}")
 
-    @app_commands.command(name="shell_startup", description="建立捷徑")
+    @app_commands.command(name="shell_startup", description="建立開機自啟動捷徑")
     async def shellStartupCommand(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
         try:
