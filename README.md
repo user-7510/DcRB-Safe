@@ -44,3 +44,8 @@ python main.py
 
 * 您可於任一文字頻道輸入 `--cmdName(param=value, ...)` 來快速執行事件。當未輸入必要參數時，機器人會智慧回傳語法提示與範例。
 * 透過 `/startup` 指令設定的開機指令會自動儲存於 `config.json` 中，並記錄當前伺服器 ID。下次程式啟動時，機器人會在該伺服器自動還原執行狀態並發送執行結果。
+
+## 密碼驗證提示
+
+- 某些指令需要密碼參數，參數名通常是password，/reject的name參數也是密碼，本程式的密碼共有兩組，一組為defaultPassword存於`./auth_secret.txt`中，為/reject指令的密碼，只能從本機手動修改；另一組可以用/change_password指令改，預設密碼為admin。
+- 一直顯示密碼錯誤時可以檢查本機的密碼檔案。
