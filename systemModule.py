@@ -109,7 +109,11 @@ class SystemCog(commands.Cog):
     async def cmdlistCommand(self, interaction: discord.Interaction):
         try:
             with open("dcrb_usage.csv","r")as f:await interaction.response.send_message(f.read())
-        except:await interaction.response.send_message("cmdlist start shutdown device kill block_input unblock_input monitor_on screenshot close_stop task_list info version keyboard")
+        except Exception:
+            await interaction.response.send_message(
+                "cmd device shutdown volume startup shell_startup reg_startup powershell "
+                "task_list cmdlist admin_setup access_scope access_logout"
+            )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SystemCog(bot))

@@ -4,11 +4,10 @@ import json
 import platform
 import importlib
 import multiprocessing
-import re
-import inspect
 import discord
 from discord import app_commands
 from discord.ext import commands
+from command_dispatch import dispatchTextCommands
 
 dcrbVersion = "6.0.0"
 
@@ -21,6 +20,14 @@ class BotRunner(commands.Bot):
         print("[資訊] 開始執行初始化設定...")
         configFilePath = self.detectEnvironmentConfig()
         await self.loadModulesFromJson(configFilePath)
+        if "accessControl" not in self.loadedModules:
+            raise RuntimeError("權限模組載入失敗，為避免未受控指令執行，停止啟動。")
+        if "authModule" in self.loadedModules:
+            import authModule
+            authModule.applyGeneralChecks(self)
+        if "accessControl" in self.loadedModules:
+            import accessControl
+            accessControl.applyAccessChecks(self)
         
         self.tree.on_error = self.onAppCommandError
         syncedCmds = await self.tree.sync()
@@ -31,11 +38,7 @@ class BotRunner(commands.Bot):
         currentOs = platform.system()
         print(f"[資訊] 偵測到執行環境作業系統: {currentOs}")
         if currentOs == "Linux":
-            hasDisplay = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-            if hasDisplay:
-                configPath = "modules_linux_desktop.json"
-            else:
-                configPath = "modules_linux_tty.json"
+            configPath = "modules_linux.json"
         else:
             configPath = "modules.json"
         
@@ -44,14 +47,8 @@ class BotRunner(commands.Bot):
 
     async def loadModulesFromJson(self, configPath: str):
         if not os.path.exists(configPath):
-            print(f"[警告] 找不到指定的設定檔 {configPath}，觸發 Failback 機制")
-            fallbackPath = "modules.json"
-            if os.path.exists(fallbackPath) and fallbackPath != configPath:
-                print(f"[資訊] 使用預設備援設定檔: {fallbackPath}")
-                configPath = fallbackPath
-            else:
-                print("[錯誤] 無法取得有效的模組設定檔，放棄載入模組")
-                return
+            print(f"[錯誤] 找不到設定檔 {configPath}，放棄載入模組")
+            return
         
         print(f"[資訊] 正在讀取模組設定檔: {configPath}")
         with open(configPath, "r", encoding="utf-8") as configFile:
@@ -128,68 +125,15 @@ class BotRunner(commands.Bot):
                 self.user = guildObj.me
                 self.client = guildObj._state._get_client() if hasattr(guildObj, '_state') else None
 
-        cmdDict = {}
-        for cogName in self.cogs:
-            cogObj = self.get_cog(cogName)
-            cogCmds = getattr(cogObj, "get_app_commands", None)
-            if callable(cogCmds):
-                cmdDict.update({cmdObj.name: (cmdObj, cogObj) for cmdObj in cogCmds()})
-            elif hasattr(cogObj, "__cog_app_commands__"):
-                cmdDict.update({cmdObj.name: (cmdObj, cogObj) for cmdObj in cogObj.__cog_app_commands__})
-
-        for segStr in [s.strip() for s in contentStr.split("--") if s.strip()]:
-            matchObj = re.match(r"^(\w+)(?:\((.*?)\))?$", segStr)
-            if not matchObj:
-                continue
-
-            cmdName = matchObj.group(1).lower()
-            paramStr = matchObj.group(2)
-            
-            if cmdName in cmdDict:
-                targetCmd, targetCog = cmdDict[cmdName]
-                sigObj = inspect.signature(targetCmd.callback)
-                
-                data_params = [p for p in sigObj.parameters.values() if p.name not in ('self', 'interaction')]
-                all_params_str = ", ".join([f"{p.name}" + (f"={p.default}" if p.default != inspect.Parameter.empty else "") for p in data_params])
-                required_params = [p for p in data_params if p.default == inspect.Parameter.empty and p.name != "image"]
-                
-                if not paramStr:
-                    if required_params:
-                        example_args = ", ".join(f"{p.name}=值" for p in required_params)
-                        help_msg = f"【開機指令提示】指令 `--{cmdName}` 缺少參數。\n**語法**：`--{cmdName}({all_params_str})`\n**範例**：`--{cmdName}({example_args})`"
-                        if channelObj:
-                            await channelObj.send(help_msg)
-                        print(help_msg)
-                        continue
-                    paramsDict = {}
-                else:
-                    paramsDict = {}
-                    for p in paramStr.split(","):
-                        if "=" in p:
-                            k, v = p.split("=", 1)
-                            paramsDict[k.strip()] = v.strip()
-
-                kwargsDict = {}
-                for paramName, paramVal in paramsDict.items():
-                    if paramName in sigObj.parameters:
-                        annoType = sigObj.parameters[paramName].annotation
-                        if annoType is float:
-                            try: kwargsDict[paramName] = float(paramVal)
-                            except ValueError: pass
-                        elif annoType is int:
-                            try: kwargsDict[paramName] = int(paramVal)
-                            except ValueError: pass
-                        else:
-                            kwargsDict[paramName] = paramVal
-
-                fakeInterObj = StartupRealInteraction()
-                try:
-                    await targetCmd.callback(targetCog, fakeInterObj, **kwargsDict)
-                except Exception as e:
-                    err_msg = f"[開機指令錯誤] 執行 `--{cmdName}` 失敗: {e}"
-                    print(err_msg)
-                    if channelObj:
-                        await channelObj.send(err_msg)
+        fakeInterObj = StartupRealInteraction()
+        await dispatchTextCommands(
+            self,
+            contentStr,
+            fakeInterObj,
+            promptLabel="開機指令提示",
+            errorLabel="開機指令錯誤",
+            runChecks=False,
+        )
 
     async def on_interaction(self, interaction: discord.Interaction):
         if interaction.type == discord.InteractionType.application_command:
@@ -216,6 +160,12 @@ botInstance = BotRunner(command_prefix="!", intents=discord.Intents.all())
 def main():
     os.chdir(os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)))
     print(f"[資訊] 工作目錄設定為: {os.getcwd()}")
+    try:
+        import accessControl
+        accessControl.initializeOwnerPassword()
+    except Exception as errObj:
+        print(f"[錯誤] 最高管理者密碼初始化失敗：{errObj}")
+        return
     botToken = readTokenFromFile("BOT_TOKEN.txt")
     if botToken:
         print("[資訊] Bot 正式啟動連線...")

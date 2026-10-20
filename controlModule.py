@@ -1,7 +1,6 @@
 import io
 import os
 import time
-import json
 import asyncio
 import threading
 import subprocess
@@ -16,25 +15,6 @@ from discord import app_commands
 from discord.ext import commands
 
 pyautogui.FAILSAFE = False
-PASSWORD_FILE_NAME = "password.json"
-
-def loadSavedPassword() -> str:
-    if os.path.exists(PASSWORD_FILE_NAME):
-        try:
-            with open(PASSWORD_FILE_NAME, "r", encoding="utf-8") as fileObj:
-                dataMap = json.load(fileObj)
-                return dataMap.get("password", "admin")
-        except Exception:
-            pass
-    return "admin"
-
-def saveSavedPassword(newPassword: str) -> bool:
-    try:
-        with open(PASSWORD_FILE_NAME, "w", encoding="utf-8") as fileObj:
-            json.dump({"password": newPassword}, fileObj, ensure_ascii=False, indent=2)
-        return True
-    except Exception:
-        return False
 
 def displayImageProcess(imgBytes: bytes):
     import tkinter as tk
@@ -59,9 +39,6 @@ class ControlCog(commands.Cog):
         self.closeLoopEvent = threading.Event()
         self.startBlacklistMonitor()
 
-    def verifyPassword(self, inputPassword: str) -> bool:
-        return inputPassword == loadSavedPassword()
-
     def startBlacklistMonitor(self):
         def monitorLoopTask():
             while True:
@@ -76,20 +53,8 @@ class ControlCog(commands.Cog):
                 time.sleep(5)
         threading.Thread(target=monitorLoopTask, daemon=True).start()
 
-    @app_commands.command(name="change_password", description="修改控制指令密碼")
-    @app_commands.rename(newPassword="new_password")
-    async def changePasswordCommand(self, interaction: discord.Interaction, newPassword: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤，無法修改密碼。", ephemeral=True)
-        if saveSavedPassword(newPassword):
-            await interaction.response.send_message("密碼已成功修改並儲存。", ephemeral=True)
-        else:
-            await interaction.response.send_message("密碼修改失敗，無法寫入檔案。", ephemeral=True)
-
     @app_commands.command(name="txt", description="傳送文字到電腦端")
-    async def txtCommand(self, interaction: discord.Interaction, text: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def txtCommand(self, interaction: discord.Interaction, text: str):
         try:
             desktopPath = os.path.join(os.path.expanduser("~"), "Desktop")
             filePath = os.path.join(desktopPath if os.path.isdir(desktopPath) else os.getcwd(), "tmp.txt")
@@ -113,16 +78,12 @@ class ControlCog(commands.Cog):
         await interaction.response.send_message("已傳送。")
 
     @app_commands.command(name="msg", description="顯示訊息通知")
-    async def msgCommand(self, interaction: discord.Interaction, text: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def msgCommand(self, interaction: discord.Interaction, text: str):
         threading.Thread(target=ctypes.windll.user32.MessageBoxW, args=(None, text, "通知", 0x40000), daemon=True).start()
         await interaction.response.send_message("已顯示通知。")
 
     @app_commands.command(name="web", description="開啟網頁")
-    async def webCommand(self, interaction: discord.Interaction, url: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def webCommand(self, interaction: discord.Interaction, url: str):
         pathsList = [r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"]
         chromePath = next((p for p in pathsList if os.path.exists(p)), None)
         if chromePath:
@@ -132,9 +93,7 @@ class ControlCog(commands.Cog):
         await interaction.response.send_message(f"已開啟: {url}")
 
     @app_commands.command(name="key", description="按鍵模擬")
-    async def keyCommand(self, interaction: discord.Interaction, keys: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def keyCommand(self, interaction: discord.Interaction, keys: str):
         keyList = keys.split()
         if len(keyList) > 1:
             threading.Thread(target=pyautogui.hotkey, args=keyList, daemon=True).start()
@@ -143,17 +102,13 @@ class ControlCog(commands.Cog):
         await interaction.response.send_message(f"已按鍵: {keys}")
 
     @app_commands.command(name="keyboard", description="輸入字串")
-    async def keyboardCommand(self, interaction: discord.Interaction, keys: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def keyboardCommand(self, interaction: discord.Interaction, keys: str):
         import keyboard
         threading.Thread(target=keyboard.write, args=(keys,), daemon=True).start()
         await interaction.response.send_message(f"已輸入: {keys}")
 
     @app_commands.command(name="key_wait", description="間隔輸入")
-    async def keyWaitCommand(self, interaction: discord.Interaction, keys: str, interval: float, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def keyWaitCommand(self, interaction: discord.Interaction, keys: str, interval: float):
         def keyWaitTask():
             for keyVal in keys.split():
                 pyautogui.press(keyVal)
@@ -162,9 +117,7 @@ class ControlCog(commands.Cog):
         await interaction.response.send_message("已逐鍵輸入。")
 
     @app_commands.command(name="close", description="關閉視窗")
-    async def closeCommand(self, interaction: discord.Interaction, keyword: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def closeCommand(self, interaction: discord.Interaction, keyword: str):
         import pygetwindow as gw
         countVal = 0
         for winObj in gw.getWindowsWithTitle(keyword):
@@ -176,9 +129,7 @@ class ControlCog(commands.Cog):
         await interaction.response.send_message(f"嘗試關閉 {countVal} 個視窗。")
 
     @app_commands.command(name="close_loop", description="循環關閉視窗")
-    async def closeLoopCommand(self, interaction: discord.Interaction, interval: float, keyword: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def closeLoopCommand(self, interaction: discord.Interaction, interval: float, keyword: str):
         self.closeLoopEvent.clear()
         import pygetwindow as gw
         def closeLoopTask():
@@ -193,16 +144,12 @@ class ControlCog(commands.Cog):
         await interaction.response.send_message("啟動循環關閉。")
 
     @app_commands.command(name="close_stop", description="停止循環關閉視窗")
-    async def closeStopCommand(self, interaction: discord.Interaction, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def closeStopCommand(self, interaction: discord.Interaction):
         self.closeLoopEvent.set()
         await interaction.response.send_message("停止循環關閉。")
 
     @app_commands.command(name="monitor_off", description="關閉螢幕")
-    async def monitorOffCommand(self, interaction: discord.Interaction, interval: float, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def monitorOffCommand(self, interaction: discord.Interaction, interval: float):
         self.monitorOffEvent.clear()
         def monitorOffTask():
             while not self.monitorOffEvent.is_set():
@@ -212,17 +159,13 @@ class ControlCog(commands.Cog):
         await interaction.response.send_message("已關閉螢幕。")
 
     @app_commands.command(name="monitor_on", description="開啟螢幕")
-    async def monitorOnCommand(self, interaction: discord.Interaction, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def monitorOnCommand(self, interaction: discord.Interaction):
         self.monitorOffEvent.set()
         ctypes.windll.user32.PostMessageW(0xFFFF, 0x0112, 0xF170, -1)
         await interaction.response.send_message("螢幕自動關閉已停止。")
 
     @app_commands.command(name="screenshot", description="螢幕截圖")
-    async def screenshotCommand(self, interaction: discord.Interaction, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def screenshotCommand(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
         def captureTask():
             with mss.mss() as sctObj:
@@ -235,9 +178,7 @@ class ControlCog(commands.Cog):
         await interaction.followup.send(file=discord.File(fp=bufferObj, filename='screenshot.png'))
 
     @app_commands.command(name="screenshot_notify", description="圖片通知")
-    async def screenshotNotifyCommand(self, interaction: discord.Interaction, image: discord.Attachment, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def screenshotNotifyCommand(self, interaction: discord.Interaction, image: discord.Attachment):
         await interaction.response.defer(thinking=True)
         imgBytes = await image.read()
         procObj = multiprocessing.Process(target=displayImageProcess, args=(imgBytes,), daemon=True)
@@ -245,48 +186,18 @@ class ControlCog(commands.Cog):
         await interaction.followup.send("已顯示。")
 
     @app_commands.command(name="blackade", description="封鎖處理程序")
-    async def blackadeCommand(self, interaction: discord.Interaction, keywords: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def blackadeCommand(self, interaction: discord.Interaction, keywords: str):
         targetList = [item.lower().strip() for item in keywords.split()]
         self.blackListSet.update(targetList)
         await interaction.response.send_message(f"已將 {', '.join(targetList)} 加入黑名單。")
 
     @app_commands.command(name="unblackade", description="解鎖處理程序")
-    async def unblackadeCommand(self, interaction: discord.Interaction, keywords: str, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
+    async def unblackadeCommand(self, interaction: discord.Interaction, keywords: str):
         targetList = [item.lower().strip() for item in keywords.split()]
         for itemStr in targetList:
             if itemStr in self.blackListSet:
                 self.blackListSet.remove(itemStr)
         await interaction.response.send_message("已解除封鎖。")
 
-"""
-    @app_commands.command(name="shutdown", description="關閉電腦")
-    async def shutdownCommand(self, interaction: discord.Interaction, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
-        await interaction.response.send_message("關機中...")
-        import sys
-        import os
-        if sys.platform == "win32":
-            os.system("shutdown /s /f /t 0")
-        else:
-            os.system("shutdown -h now")
-
-    @app_commands.command(name="kill", description="強制終止命令提示字元與工作管理員")
-    async def killCommand(self, interaction: discord.Interaction, password: str = "admin"):
-        if not self.verifyPassword(password):
-            return await interaction.response.send_message("密碼錯誤！", ephemeral=True)
-        import sys
-        import subprocess
-        if sys.platform == "win32":
-            for procName in ["cmd.exe", "taskmgr.exe"]:
-                subprocess.run(["taskkill", "/F", "/IM", procName], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            await interaction.response.send_message("已強制終止命令提示字元與工作管理員。")
-        else:
-            await interaction.response.send_message("此指令僅支援 Windows 系統。")
-"""
 async def setup(botObj: commands.Bot):
     await botObj.add_cog(ControlCog(botObj))

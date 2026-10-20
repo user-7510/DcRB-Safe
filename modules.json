@@ -4,6 +4,7 @@
     "authModule",
     "controlModule",
     "systemModule",
-    "eventModule"
+    "eventModule",
+    "accessControl"
   ]
 }

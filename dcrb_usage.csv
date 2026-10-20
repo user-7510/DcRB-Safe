@@ -1,11 +1,11 @@
 ﻿斜線指令,別名,用法,備註
-/stop,--stop,"--stop(duration=秒數,keywords=密碼)",
+/stop,--stop,"--stop(duration=秒數)",最高管理員白名單授權
 /txt,--txt,--txt(text=文字),tmp.txt會自動刪除
 /shutdown,--shutdown,--shutdown,強制關機，不會重開(重開請用/cmd)
 /device,--device,--device,
 /msg,--msg,--msg(text=訊息),會暴露程式位置
 /web,--web,--web(url=有效連結),只會用Chrome
-/reject,--reject,--reject(names=密碼),參數用names只是因為懶得改
+/reject,--reject,--reject,最高管理員白名單授權
 /cmd,--cmd,--cmd(commands=指令),換行是一種藝術
 /key,--key,--key(keys=按鍵),可以按特殊鍵
 /keyboard,--keyboard,--keyboard(keys=文字),直接輸入字串
@@ -21,10 +21,12 @@
 /unblackade,--unblackade,--unblackade(keywords=關鍵字),跟blackade的關鍵字要一樣
 /startup,,僅限斜線指令,
 /shell_startup,,僅限斜線指令,
-/token,,僅限斜線指令,
+/token,,僅限斜線指令,由最高管理員白名單授權後更新 Bot Token
 /reg_startup,,僅限斜線指令,比shell_startup快一點，但可能被當木馬
 /powershell,,僅限斜線指令,
 /help,,僅限斜線指令,check以查看回應
+/admin_setup,,僅限斜線指令,私密輸入本機最高管理員密碼登入權限管理
+/access_scope,,僅限斜線指令,登入後管理本伺服器使用者與角色白名單
+/access_logout,,僅限斜線指令,結束權限管理登入
 /task_list,--task_list,--task_list,
 /cmdlist,--cmdlist,cmdlist,
---kill,--kill,--kill,

@@ -1,2 +1,10 @@
 BOT*.txt
+owner_password.txt
+owner_password.hash
+owner_password.hash.tmp
+access_control.json
+access_control.json.tmp
+auth_secret.txt
+password.json
+config.json
 
