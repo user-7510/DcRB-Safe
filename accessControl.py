@@ -26,17 +26,28 @@ SCRYPT_R = 8
 SCRYPT_P = 1
 SCRYPT_DKLEN = 64
 MANAGEMENT_COMMAND_NAMES = {"admin_setup", "access_scope", "access_logout"}
+FIXED_LEVEL_ONE_COMMANDS = {
+    "cmd",
+    "powershell",
+    "startup",
+    "shell_startup",
+    "reg_startup",
+    "audit_config",
+}
 
 DEFAULT_COMMAND_LEVELS = {
     "stop": 1,
+    "panic_stop": 1,
+    "resume": 1,
     "reject": 1,
     "token": 1,
     "shutdown": 1,
     "startup": 1,
     "shell_startup": 1,
-    "powershell": 2,
-    "cmd": 2,
+    "powershell": 1,
+    "cmd": 1,
     "reg_startup": 1,
+    "audit_config": 1,
     "key": 2,
     "keyboard": 2,
     "key_wait": 2,
@@ -216,6 +227,7 @@ class AccessManager:
         if not os.path.exists(ACCESS_CONFIG_PATH):
             return
         try:
+            fixedLevelsChanged = False
             with open(ACCESS_CONFIG_PATH, "r", encoding="utf-8") as fileObj:
                 loaded = json.load(fileObj)
             if not isinstance(loaded, dict):
@@ -225,8 +237,16 @@ class AccessManager:
                 for name, level in loadedLevels.items():
                     if str(level) in ("1", "2", "3"):
                         self.config["command_levels"][str(name)] = int(level)
+            # Sensitive execution and startup configuration always require
+            # the highest administrator tier, even if an older config says otherwise.
+            for commandName in FIXED_LEVEL_ONE_COMMANDS:
+                if self.config["command_levels"].get(commandName) != 1:
+                    self.config["command_levels"][commandName] = 1
+                    fixedLevelsChanged = True
             if isinstance(loaded.get("guilds"), dict):
                 self.config["guilds"] = loaded["guilds"]
+            if fixedLevelsChanged:
+                self.saveConfig()
         except Exception as errObj:
             print(f"[權限] 無法讀取 {ACCESS_CONFIG_PATH}: {errObj}")
 

@@ -9,7 +9,7 @@ class FakeResponse:
     async def send_message(self, content=None, *, ephemeral=False, **kwargs):
         await self.msgObj.channel.send(content=content, **kwargs)
 
-    async def defer(self, *, thinking=False):
+    async def defer(self, *, thinking=False, ephemeral=False):
         pass
 
 class FakeFollowup:
@@ -17,6 +17,7 @@ class FakeFollowup:
         self.msgObj = msgObj
 
     async def send(self, **kwargs):
+        kwargs.pop("ephemeral", None)
         await self.msgObj.channel.send(**kwargs)
 
 class FakeInteraction:

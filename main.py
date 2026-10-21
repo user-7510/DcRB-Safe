@@ -15,6 +15,23 @@ class BotRunner(commands.Bot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.loadedModules = []
+        self._shutdownCleanupDone = False
+
+    async def close(self):
+        if not self._shutdownCleanupDone:
+            self._shutdownCleanupDone = True
+            try:
+                if "authModule" in self.loadedModules:
+                    import authModule
+                    await authModule.runRemoteControlHooks(
+                        self, "stopRemoteOperations", hard=True
+                    )
+            finally:
+                await super().close()
+            if "auditLog" in sys.modules:
+                await sys.modules["auditLog"].flushPendingRecords()
+            return
+        await super().close()
 
     async def setup_hook(self):
         print("[資訊] 開始執行初始化設定...")
@@ -25,6 +42,10 @@ class BotRunner(commands.Bot):
         if "authModule" in self.loadedModules:
             import authModule
             authModule.applyGeneralChecks(self)
+            if authModule.stopLocked:
+                await authModule.runRemoteControlHooks(
+                    self, "stopRemoteOperations", hard=False
+                )
         if "accessControl" in self.loadedModules:
             import accessControl
             accessControl.applyAccessChecks(self)
@@ -70,6 +91,11 @@ class BotRunner(commands.Bot):
 
     async def executeStartupConfig(self):
         await self.wait_until_ready()
+        if "authModule" in self.loadedModules:
+            import authModule
+            if authModule.stopLocked:
+                print("[遠端控制] panic stop 硬鎖啟用中，略過開機指令。")
+                return
         if not os.path.exists("config.json"):
             return
             
@@ -105,11 +131,12 @@ class BotRunner(commands.Bot):
                 else:
                     print(f"[開機指令輸出] {content}")
 
-            async def defer(self, *, thinking=False):
+            async def defer(self, *, thinking=False, ephemeral=False):
                 pass
 
         class StartupRealFollowup:
             async def send(self, **kwargs):
+                kwargs.pop("ephemeral", None)
                 if channelObj:
                     await channelObj.send(**kwargs)
                 else:
@@ -133,6 +160,7 @@ class BotRunner(commands.Bot):
             promptLabel="開機指令提示",
             errorLabel="開機指令錯誤",
             runChecks=False,
+            auditSource="startup",
         )
 
     async def on_interaction(self, interaction: discord.Interaction):
@@ -140,6 +168,17 @@ class BotRunner(commands.Bot):
             commandName = interaction.data.get("name", "unknown")
             userName = interaction.user.name
             print(f"[指令] 收到來自使用者 {userName} 的指令: /{commandName}")
+            try:
+                import auditLog
+
+                auditLog.scheduleCommandRecord(
+                    interaction,
+                    commandName,
+                    source="slash",
+                    timestamp=interaction.created_at,
+                )
+            except Exception as errObj:
+                print(f"[稽核] 無法排入指令紀錄：{type(errObj).__name__}")
 
     async def onAppCommandError(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         commandName = interaction.command.name if interaction.command else "未知"

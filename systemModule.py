@@ -1,5 +1,6 @@
 import os
 import sys
+import asyncio
 import uuid
 import socket
 import platform
@@ -23,6 +24,50 @@ def getHostIp():
 class SystemCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.shellProcesses = {}
+        self.remoteOperationsPaused = False
+
+    def trackShellProcess(self, processObj):
+        self.shellProcesses[processObj.pid] = processObj
+        self.shellProcesses = {
+            processId: trackedProcess
+            for processId, trackedProcess in self.shellProcesses.items()
+            if trackedProcess.poll() is None
+        }
+
+    async def stopRemoteOperations(self, hard=False):
+        self.remoteOperationsPaused = True
+        if not hard:
+            return
+        processIds = [
+            processId for processId, processObj in self.shellProcesses.items()
+            if processObj.poll() is None
+        ]
+
+        def terminateProcessTrees():
+            for processId in processIds:
+                try:
+                    resultObj = subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(processId)],
+                        capture_output=True,
+                        timeout=10,
+                        check=False,
+                    )
+                    if resultObj.returncode != 0:
+                        errorText = resultObj.stderr.decode(errors="replace").strip()
+                        print(
+                            f"[遠端控制] taskkill 無法停止 shell 程序 {processId}："
+                            f"{errorText or resultObj.returncode}"
+                        )
+                except Exception as errObj:
+                    print(f"[遠端控制] 無法停止 shell 程序 {processId}：{errObj}")
+
+        await asyncio.to_thread(terminateProcessTrees)
+        for processId in processIds:
+            self.shellProcesses.pop(processId, None)
+
+    def resumeRemoteOperations(self):
+        self.remoteOperationsPaused = False
 
     @app_commands.command(name="device", description="回傳裝置基本資訊")
     async def deviceCommand(self, interaction: discord.Interaction):
@@ -42,7 +87,10 @@ class SystemCog(commands.Cog):
 
     @app_commands.command(name="cmd", description="執行 CMD 指令")
     async def cmdCommand(self, interaction: discord.Interaction, commands: str):
-        subprocess.Popen(['cmd', '/k', " & ".join(commands.splitlines())])
+        if self.remoteOperationsPaused:
+            return await interaction.response.send_message("遠端控制暫停中，未執行指令。", ephemeral=True)
+        processObj = subprocess.Popen(['cmd', '/k', " & ".join(commands.splitlines())])
+        self.trackShellProcess(processObj)
         await interaction.response.send_message("已執行 CMD 指令。")
 
     @app_commands.command(name="volume", description="設定音量")
@@ -95,7 +143,10 @@ class SystemCog(commands.Cog):
     @app_commands.command(name="powershell", description="執行 PowerShell 指令")
     async def powershellCommand(self, interaction: discord.Interaction, commands: str):
         await interaction.response.defer(thinking=True)
-        subprocess.Popen(['powershell', '-NoExit', '-Command', "; ".join(commands.splitlines())], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        if self.remoteOperationsPaused:
+            return await interaction.followup.send("遠端控制暫停中，未執行指令。", ephemeral=True)
+        processObj = subprocess.Popen(['powershell', '-NoExit', '-Command', "; ".join(commands.splitlines())], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        self.trackShellProcess(processObj)
         await interaction.followup.send("已執行 PowerShell 指令。")
 
     @app_commands.command(name="task_list", description="前台程式列表")

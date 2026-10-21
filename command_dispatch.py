@@ -8,6 +8,15 @@ class CommandNameCollision(ValueError):
     pass
 
 
+SLASH_ONLY_COMMAND_NAMES = {
+    "admin_setup",
+    "access_scope",
+    "access_logout",
+    "panic_stop",
+    "resume",
+}
+
+
 def getCommandRegistry(botObj):
     commandMap = {}
     for cogName in botObj.cogs:
@@ -58,6 +67,7 @@ async def dispatchTextCommands(
     promptLabel="提示",
     errorLabel="指令錯誤",
     runChecks=True,
+    auditSource="text",
 ):
     try:
         commandMap = getCommandRegistry(botObj)
@@ -71,10 +81,17 @@ async def dispatchTextCommands(
             continue
 
         commandName = match.group(1).lower()
-        if commandName in {"admin_setup", "access_scope", "access_logout"}:
-            await interaction.response.send_message("權限管理指令只能透過斜線指令使用。")
-            continue
         commandEntry = commandMap.get(commandName)
+        if commandEntry or commandName in SLASH_ONLY_COMMAND_NAMES:
+            try:
+                import auditLog
+
+                auditLog.scheduleCommandRecord(interaction, commandName, auditSource)
+            except Exception as errObj:
+                print(f"[稽核] 無法排入指令紀錄：{type(errObj).__name__}")
+        if commandName in SLASH_ONLY_COMMAND_NAMES:
+            await interaction.response.send_message("此指令只能透過斜線指令使用。")
+            continue
         if not commandEntry:
             continue
 

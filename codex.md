@@ -14,7 +14,8 @@ DcRB is a Discord bot that exposes local computer control through slash commands
 - Added guild-scoped access control. The local highest-administrator password is prompted for on first `main` startup, stored as a salted scrypt hash in `owner_password.hash`, and entered into Discord through the private `/admin_setup` modal.
 - The Discord owner session lasts 10 minutes. `/access_scope` adds, removes, and lists per-guild user and role assignments; `/access_logout` ends the caller's session.
 - Current user decision: remove every command-specific/secondary password check. All functional commands are authorized through the administrator-assigned access levels. Only the local owner password remains for `/admin_setup`.
-- Current user-selected default tiers: level 1 for high-impact/system startup operations; level 2 for shell/keyboard command execution; level 3 for regular read/control operations. `reg_startup` is level 1. Unclassified commands default to level 1.
+- Current user-selected default tiers: level 1 for high-impact/system startup operations and shell commands (`cmd`, including Linux Bash, and `powershell`); level 2 for keyboard command execution; level 3 for regular read/control operations. `startup`, `shell_startup`, `reg_startup`, and `audit_config` are fixed to level 1 even when older config files assign a lower level. Unclassified commands default to level 1.
+- Current user decision: `/stop(duration)` pauses new ordinary commands, cancels managed looping and keyboard tasks, and pauses blacklist enforcement; it leaves shell processes running and resumes command access plus blacklist enforcement when the timer expires. `/panic_stop` performs the same pause and terminates tracked shell process trees until a level-1 `/resume` is used. The hard lock persists in `panic_stop.lock` across restarts, and saved startup commands are skipped while locked. Stopped loops do not restart automatically.
 - Updated application-command error handling in `main.py` for Discord error 10062 (`Unknown interaction`): expired interactions are logged as warnings without attempting a second, doomed response. For other command errors, the handler uses a followup when the interaction was already acknowledged and catches HTTP failures while reporting.
 - `1.log` showed `/admin_setup`'s modal response arriving after Discord had expired the interaction, followed by a second 10062 from the global error handler. An expired interaction cannot be used to open the modal or send a reply; retry `/admin_setup` after the bot reconnects.
 
@@ -22,9 +23,9 @@ DcRB is a Discord bot that exposes local computer control through slash commands
 
 `main.py` initializes the owner hash, reads `BOT_TOKEN.txt`, then launches `BotRunner`. `setup_hook()` selects `modules_linux.json` on Linux and `modules.json` otherwise, imports each listed module and calls its `setup(bot)`. It then adds `authModule.generalCheck` and `accessControl` checks before syncing slash commands. Startup stops if `accessControl` did not load.
 
-Windows configuration loads `authModule`, `controlModule`, `systemModule`, `eventModule`, and `accessControl`. Linux configuration loads `authModule`, `linuxModule`, and `accessControl`. The non-Linux branch currently uses Windows modules, so macOS is not separately supported.
+Windows configuration loads `authModule`, `controlModule`, `systemModule`, `eventModule`, and `accessControl`. Linux configuration loads `authModule`, `linuxModule`, and `accessControl`. The non-Linux branch currently uses Windows modules, so macOS deployment is not recommended.
 
-`eventModule` passes `--` messages to `command_dispatch.dispatchTextCommands`; `main.py` uses the same dispatcher for saved startup text. Dispatcher discovers callbacks from loaded Cogs, converts simple typed arguments, and applies command checks for normal text messages. Saved startup text runs with `runChecks=False` after it was configured through `/startup`.
+`eventModule` passes `--` messages to `command_dispatch.dispatchTextCommands`; `main.py` uses the same dispatcher for saved startup text. Dispatcher discovers callbacks from loaded Cogs, converts simple typed arguments, and applies command checks for normal text messages. Saved startup text runs with `runChecks=False` after it was configured through `/startup`. Slash and recognized `--` commands queue metadata-only Google Forms audit records; shutdown closes tracked shell process trees and flushes pending audit submissions.
 
 ## Permission model
 
@@ -33,18 +34,19 @@ Windows configuration loads `authModule`, `controlModule`, `systemModule`, `even
 - Level 3: user IDs or role IDs.
 - The lowest numeric level grants the greatest access. A user assigned more than one level receives the strongest one.
 - Permission configuration is per guild in `access_control.json`; command levels are configurable in its `command_levels` map.
+- `audit_config.json` holds the deployment's Google Forms response URL and one long-answer field ID. `/audit_config` is available to level 1 administrators and writes this file. Audit records contain UTC time, command name, user ID, guild ID, and source, never arguments or output.
 - `/admin_setup`, `/access_scope`, and `/access_logout` are management commands and are excluded from ordinary command checks. Scope changes require the caller's valid owner session.
 - Do not reintroduce password parameters or per-command password checks. The owner hash is the only password credential used by current code.
 
 Default command levels in `accessControl.py`:
 
-- **1**: `stop`, `reject`, `token`, `shutdown`, `startup`, `shell_startup`, `reg_startup`
-- **2**: `powershell`, `cmd`, `key`, `keyboard`, `key_wait`
+- **1**: `stop`, `panic_stop`, `resume`, `reject`, `token`, `shutdown`, `startup`, `shell_startup`, `reg_startup`, `powershell`, `cmd`, `audit_config`
+- **2**: `key`, `keyboard`, `key_wait`
 - **3**: `web`, `blackade`, `unblackade`, `txt`, `msg`, `close`, `close_loop`, `close_stop`, `monitor_off`, `monitor_on`, `screenshot`, `screenshot_notify`, `device`, `volume`, `task_list`, `cmdlist`, `help`
 
 ## Command behavior by module
 
-- `authModule.py`: `/stop(duration)`, `/reject`, `/token(token)`, `/help`. `/stop` pauses ordinary commands; management commands remain available. `/reject` exits the process.
+- `authModule.py`: `/stop(duration)`, `/panic_stop`, `/resume`, `/reject`, `/token(token)`, `/audit_config(form_url, entry_id)`, `/help`. `/stop` pauses ordinary commands and managed loops; `/panic_stop` also terminates tracked shell processes and locks command access until `/resume`. Access-management commands remain available. `/reject` exits the process.
 - `controlModule.py` (Windows): text-file display, message box, web launch, keyboard input, window closing, monitor control, screenshots, and process blacklist handling.
 - `systemModule.py` (Windows): device information, CMD and PowerShell, volume, shutdown, startup config, Startup-folder shortcut, registry startup, process/window list and command list.
 - `linuxModule.py`: Linux device information, Bash command, shutdown, and process list.
@@ -55,6 +57,8 @@ Default command levels in `accessControl.py`:
 - Required input: `BOT_TOKEN.txt`.
 - Owner credential: `owner_password.hash`. First setup requires an interactive terminal and a 12–128 character password. A legacy `owner_password.txt` is migrated to the hash and removed at startup.
 - Runtime state: `access_control.json` (permissions) and `config.json` (saved startup command and guild ID).
+- Google Forms audit destination: `audit_config.json`; the deployer supplies a public Google Forms response endpoint and field entry ID.
+- `panic_stop.lock` persists the emergency control lock until `/resume` clears it.
 - `auth_secret.txt` and `password.json` are legacy files. Current Python code no longer reads, creates, or writes them. Their `.gitignore` entries are intentionally retained to protect leftover local copies.
 - Dependencies are listed in `requirements.txt`: `discord.py`, `aiohttp`, `psutil`, `pyautogui`, `mss`, `pygetwindow`, `pycaw`, `keyboard`, `Pillow`.
 - `dcrb_usage.csv` is the live `/cmdlist` content. Keep it aligned with command signatures; do not advertise removed commands such as `--kill` or obsolete password arguments.
@@ -62,12 +66,15 @@ Default command levels in `accessControl.py`:
 
 ## Current task status
 
-Completed for the latest user request:
+Completed in the current worktree:
 
 1. Removed secondary password checks, password parameters, old password generators/storage helpers, and `/change_password`.
 2. Updated `dcrb_usage.csv` for the changed `/stop`, `/reject`, and `/token` signatures and removed its stale `--kill` entry.
 3. Rewrote `README.md` with setup, module dependencies, platform behavior, permission levels, commands, and runtime files.
 4. Created this handoff file.
 5. Made the global application-command error handler tolerate expired Discord interactions and avoid the secondary unhandled task exception shown in `1.log`.
+6. Fixed shell and startup configuration commands at level 1; persisted migration raises older configured levels.
+7. Added Google Forms metadata auditing for slash and text commands, `/audit_config`, and the ignored `audit_config.json` deployment file.
+8. Clean up tracked shell process trees during orderly Bot shutdown, including Ctrl+C, and document that macOS deployment is not recommended.
 
 No tests have been run. After edits, inspect references for old password logic and run `git diff --check`; do not launch the bot during static handoff review because it may prompt for a local owner password or connect to Discord.

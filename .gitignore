@@ -4,6 +4,10 @@ owner_password.hash
 owner_password.hash.tmp
 access_control.json
 access_control.json.tmp
+panic_stop.lock
+panic_stop.lock.tmp
+audit_config.json
+audit_config.json.tmp
 auth_secret.txt
 password.json
 config.json

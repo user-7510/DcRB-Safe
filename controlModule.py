@@ -37,20 +37,70 @@ class ControlCog(commands.Cog):
         self.blackListSet = set()
         self.monitorOffEvent = threading.Event()
         self.closeLoopEvent = threading.Event()
+        self.blackListLock = threading.Lock()
+        self.blackListMonitorEnabled = threading.Event()
+        self.blackListMonitorEnabled.set()
+        self.blackListMonitorWake = threading.Event()
+        self.remoteOperationLock = threading.Lock()
+        self.remoteOperationsPaused = False
+        self.inputStopEvents = set()
         self.startBlacklistMonitor()
+
+    def startInputTask(self, taskFunc):
+        stopEvent = threading.Event()
+        with self.remoteOperationLock:
+            if self.remoteOperationsPaused:
+                return False
+            self.inputStopEvents.add(stopEvent)
+
+        def runTask():
+            try:
+                taskFunc(stopEvent)
+            finally:
+                with self.remoteOperationLock:
+                    self.inputStopEvents.discard(stopEvent)
+
+        threading.Thread(target=runTask, daemon=True).start()
+        return True
+
+    def stopRemoteOperations(self, hard=False):
+        with self.remoteOperationLock:
+            self.remoteOperationsPaused = True
+            self.closeLoopEvent.set()
+            self.monitorOffEvent.set()
+            self.blackListMonitorEnabled.clear()
+            self.blackListMonitorWake.set()
+            stopEvents = list(self.inputStopEvents)
+        for stopEvent in stopEvents:
+            stopEvent.set()
+
+    def resumeRemoteOperations(self):
+        with self.remoteOperationLock:
+            self.remoteOperationsPaused = False
+            self.blackListMonitorEnabled.set()
+            self.blackListMonitorWake.set()
 
     def startBlacklistMonitor(self):
         def monitorLoopTask():
             while True:
-                if self.blackListSet:
+                if not self.blackListMonitorEnabled.is_set():
+                    self.blackListMonitorWake.wait(0.5)
+                    self.blackListMonitorWake.clear()
+                    continue
+                with self.blackListLock:
+                    blackListSnapshot = tuple(self.blackListSet)
+                if blackListSnapshot:
                     for procObj in psutil.process_iter(['name']):
+                        if not self.blackListMonitorEnabled.is_set():
+                            break
                         procName = (procObj.info.get('name') or '').lower()
-                        if any(keyword in procName for keyword in self.blackListSet):
+                        if any(keyword in procName for keyword in blackListSnapshot):
                             try:
                                 procObj.kill()
                             except Exception:
                                 pass
-                time.sleep(5)
+                self.blackListMonitorWake.wait(5)
+                self.blackListMonitorWake.clear()
         threading.Thread(target=monitorLoopTask, daemon=True).start()
 
     @app_commands.command(name="txt", description="傳送文字到電腦端")
@@ -95,25 +145,46 @@ class ControlCog(commands.Cog):
     @app_commands.command(name="key", description="按鍵模擬")
     async def keyCommand(self, interaction: discord.Interaction, keys: str):
         keyList = keys.split()
-        if len(keyList) > 1:
-            threading.Thread(target=pyautogui.hotkey, args=keyList, daemon=True).start()
-        else:
-            threading.Thread(target=pyautogui.press, args=(keyList[0],), daemon=True).start()
+        if not keyList:
+            return await interaction.response.send_message("請提供至少一個按鍵。", ephemeral=True)
+        def keyTask(stopEvent):
+            if stopEvent.is_set():
+                return
+            if len(keyList) > 1:
+                pyautogui.hotkey(*keyList)
+            else:
+                pyautogui.press(keyList[0])
+        if not self.startInputTask(keyTask):
+            return await interaction.response.send_message("遠端控制暫停中。", ephemeral=True)
         await interaction.response.send_message(f"已按鍵: {keys}")
 
     @app_commands.command(name="keyboard", description="輸入字串")
     async def keyboardCommand(self, interaction: discord.Interaction, keys: str):
         import keyboard
-        threading.Thread(target=keyboard.write, args=(keys,), daemon=True).start()
+        def keyboardTask(stopEvent):
+            for character in keys:
+                if stopEvent.is_set():
+                    break
+                keyboard.write(character)
+        if not self.startInputTask(keyboardTask):
+            return await interaction.response.send_message("遠端控制暫停中。", ephemeral=True)
         await interaction.response.send_message(f"已輸入: {keys}")
 
     @app_commands.command(name="key_wait", description="間隔輸入")
     async def keyWaitCommand(self, interaction: discord.Interaction, keys: str, interval: float):
-        def keyWaitTask():
+        if not 0 <= interval <= 60:
+            return await interaction.response.send_message(
+                "輸入間隔必須介於 0 至 60 秒。", ephemeral=True
+            )
+        def keyWaitTask(stopEvent):
             for keyVal in keys.split():
+                if stopEvent.is_set():
+                    break
                 pyautogui.press(keyVal)
-                time.sleep(interval)
-        threading.Thread(target=keyWaitTask, daemon=True).start()
+                if stopEvent.wait(interval):
+                    break
+        if not self.startInputTask(keyWaitTask):
+            return await interaction.response.send_message("遠端控制暫停中。", ephemeral=True)
         await interaction.response.send_message("已逐鍵輸入。")
 
     @app_commands.command(name="close", description="關閉視窗")
@@ -130,17 +201,28 @@ class ControlCog(commands.Cog):
 
     @app_commands.command(name="close_loop", description="循環關閉視窗")
     async def closeLoopCommand(self, interaction: discord.Interaction, interval: float, keyword: str):
-        self.closeLoopEvent.clear()
+        if not 0.1 <= interval <= 3600:
+            return await interaction.response.send_message(
+                "循環間隔必須介於 0.1 至 3600 秒。", ephemeral=True
+            )
         import pygetwindow as gw
         def closeLoopTask():
             while not self.closeLoopEvent.is_set():
                 for winObj in gw.getWindowsWithTitle(keyword):
+                    if self.closeLoopEvent.is_set():
+                        break
                     try:
                         winObj.close()
                     except Exception:
                         pass
-                time.sleep(interval)
-        threading.Thread(target=closeLoopTask, daemon=True).start()
+                self.closeLoopEvent.wait(interval)
+        with self.remoteOperationLock:
+            paused = self.remoteOperationsPaused
+            if not paused:
+                self.closeLoopEvent.clear()
+                threading.Thread(target=closeLoopTask, daemon=True).start()
+        if paused:
+            return await interaction.response.send_message("遠端控制暫停中。", ephemeral=True)
         await interaction.response.send_message("啟動循環關閉。")
 
     @app_commands.command(name="close_stop", description="停止循環關閉視窗")
@@ -150,12 +232,21 @@ class ControlCog(commands.Cog):
 
     @app_commands.command(name="monitor_off", description="關閉螢幕")
     async def monitorOffCommand(self, interaction: discord.Interaction, interval: float):
-        self.monitorOffEvent.clear()
+        if not 0.1 <= interval <= 3600:
+            return await interaction.response.send_message(
+                "循環間隔必須介於 0.1 至 3600 秒。", ephemeral=True
+            )
         def monitorOffTask():
             while not self.monitorOffEvent.is_set():
                 ctypes.windll.user32.PostMessageW(0xFFFF, 0x0112, 0xF170, 2)
-                time.sleep(interval)
-        threading.Thread(target=monitorOffTask, daemon=True).start()
+                self.monitorOffEvent.wait(interval)
+        with self.remoteOperationLock:
+            paused = self.remoteOperationsPaused
+            if not paused:
+                self.monitorOffEvent.clear()
+                threading.Thread(target=monitorOffTask, daemon=True).start()
+        if paused:
+            return await interaction.response.send_message("遠端控制暫停中。", ephemeral=True)
         await interaction.response.send_message("已關閉螢幕。")
 
     @app_commands.command(name="monitor_on", description="開啟螢幕")
@@ -188,15 +279,16 @@ class ControlCog(commands.Cog):
     @app_commands.command(name="blackade", description="封鎖處理程序")
     async def blackadeCommand(self, interaction: discord.Interaction, keywords: str):
         targetList = [item.lower().strip() for item in keywords.split()]
-        self.blackListSet.update(targetList)
+        with self.blackListLock:
+            self.blackListSet.update(targetList)
         await interaction.response.send_message(f"已將 {', '.join(targetList)} 加入黑名單。")
 
     @app_commands.command(name="unblackade", description="解鎖處理程序")
     async def unblackadeCommand(self, interaction: discord.Interaction, keywords: str):
         targetList = [item.lower().strip() for item in keywords.split()]
-        for itemStr in targetList:
-            if itemStr in self.blackListSet:
-                self.blackListSet.remove(itemStr)
+        with self.blackListLock:
+            for itemStr in targetList:
+                self.blackListSet.discard(itemStr)
         await interaction.response.send_message("已解除封鎖。")
 
 async def setup(botObj: commands.Bot):

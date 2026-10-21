@@ -1,5 +1,7 @@
 ﻿斜線指令,別名,用法,備註
 /stop,--stop,"--stop(duration=秒數)",最高管理員白名單授權
+/panic_stop,,僅限斜線指令,層級 1；強制停止循環操作及 Bot 追蹤中的 shell 程序，需用/resume解除
+/resume,,僅限斜線指令,層級 1；提前解除暫停，不會重啟已停止的循環操作
 /txt,--txt,--txt(text=文字),tmp.txt會自動刪除
 /shutdown,--shutdown,--shutdown,強制關機，不會重開(重開請用/cmd)
 /device,--device,--device,
@@ -19,14 +21,15 @@
 /screenshot_notify,直接傳圖片,僅限斜線指令,會暴露程式位置
 /blackade,--blackade,--blackade(keywords=關鍵字),約5秒關閉一次，終止程序
 /unblackade,--unblackade,--unblackade(keywords=關鍵字),跟blackade的關鍵字要一樣
-/startup,,僅限斜線指令,
-/shell_startup,,僅限斜線指令,
+/startup,,僅限斜線指令,層級 1；開機指令由最高管理員設定
+/shell_startup,,僅限斜線指令,層級 1；建立開機自啟動捷徑
 /token,,僅限斜線指令,由最高管理員白名單授權後更新 Bot Token
-/reg_startup,,僅限斜線指令,比shell_startup快一點，但可能被當木馬
+/reg_startup,,僅限斜線指令,層級 1；設定登錄檔開機自啟
 /powershell,,僅限斜線指令,
 /help,,僅限斜線指令,check以查看回應
 /admin_setup,,僅限斜線指令,私密輸入本機最高管理員密碼登入權限管理
 /access_scope,,僅限斜線指令,登入後管理本伺服器使用者與角色白名單
 /access_logout,,僅限斜線指令,結束權限管理登入
+/audit_config,,僅限斜線指令,層級 1；設定 Google 表單稽核網址與長答欄位 ID
 /task_list,--task_list,--task_list,
 /cmdlist,--cmdlist,cmdlist,

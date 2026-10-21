@@ -1,5 +1,7 @@
 import os
 import sys
+import asyncio
+import signal
 import socket
 import platform
 import subprocess
@@ -22,6 +24,42 @@ def getHostIp():
 class LinuxCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.shellProcesses = set()
+        self.shellLock = asyncio.Lock()
+        self.remoteOperationsPaused = False
+
+    async def stopRemoteOperations(self, hard=False):
+        async with self.shellLock:
+            self.remoteOperationsPaused = True
+            processList = list(self.shellProcesses)
+        if not hard:
+            return
+        for processObj in processList:
+            try:
+                os.killpg(processObj.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            except Exception as errObj:
+                print(f"[遠端控制] 無法停止 Bash 程序群組 {processObj.pid}：{errObj}")
+
+        if processList:
+            await asyncio.sleep(0.5)
+        for processObj in processList:
+            try:
+                os.killpg(processObj.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except Exception as errObj:
+                print(f"[遠端控制] 無法強制停止 Bash 程序群組 {processObj.pid}：{errObj}")
+            try:
+                await processObj.wait()
+            except Exception:
+                pass
+            self.shellProcesses.discard(processObj)
+
+    async def resumeRemoteOperations(self):
+        async with self.shellLock:
+            self.remoteOperationsPaused = False
 
     @app_commands.command(name="device", description="回傳 Linux 裝置資訊")
     async def deviceCommand(self, interaction: discord.Interaction):
@@ -38,19 +76,45 @@ class LinuxCog(commands.Cog):
     @app_commands.command(name="cmd", description="執行 Bash 指令")
     async def cmdCommand(self, interaction: discord.Interaction, commands: str):
         await interaction.response.defer(thinking=True)
+        processObj = None
         try:
-            processResult = subprocess.run(
-                ["bash", "-c", commands],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            outputStr = processResult.stdout or processResult.stderr or "指令執行完成，無輸出內容。"
+            async with self.shellLock:
+                if not self.remoteOperationsPaused:
+                    processObj = await asyncio.create_subprocess_exec(
+                        "bash", "-c", commands,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        start_new_session=True,
+                    )
+                    self.shellProcesses.add(processObj)
+            if processObj is None:
+                await interaction.followup.send("遠端控制暫停中，未執行指令。")
+                return
+            communicationTask = asyncio.create_task(processObj.communicate())
+            try:
+                stdoutBytes, stderrBytes = await asyncio.wait_for(
+                    asyncio.shield(communicationTask), timeout=30
+                )
+            except asyncio.TimeoutError:
+                try:
+                    os.killpg(processObj.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                stdoutBytes, stderrBytes = await communicationTask
+                await interaction.followup.send("指令超過 30 秒，已終止執行。")
+                return
+
+            stdoutText = stdoutBytes.decode(errors="replace")
+            stderrText = stderrBytes.decode(errors="replace")
+            outputStr = stdoutText or stderrText or "指令執行完成，無輸出內容。"
             if len(outputStr) > 1900:
                 outputStr = outputStr[:1900] + "\n... (輸出內容過長已截斷)"
             await interaction.followup.send(f"```bash\n{outputStr}\n```")
         except Exception as errObj:
             await interaction.followup.send(f"執行失敗：{errObj}")
+        finally:
+            if processObj is not None:
+                self.shellProcesses.discard(processObj)
 
     @app_commands.command(name="shutdown", description="關閉 Linux 系統")
     async def shutdownCommand(self, interaction: discord.Interaction):
