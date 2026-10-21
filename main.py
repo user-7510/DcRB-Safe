@@ -143,9 +143,28 @@ class BotRunner(commands.Bot):
 
     async def onAppCommandError(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         commandName = interaction.command.name if interaction.command else "未知"
+        originalError = error.original if isinstance(error, app_commands.CommandInvokeError) else error
+        if isinstance(originalError, discord.NotFound) and originalError.code == 10062:
+            print(f"[警告] 指令 /{commandName} 的互動已逾時，請重新執行指令。")
+            return
+
         print(f"[錯誤] 指令 /{commandName} 執行失敗: {error}")
-        if not interaction.response.is_done():
-            await interaction.response.send_message("指令執行過程發生錯誤。", ephemeral=True)
+        if interaction.is_expired():
+            print(f"[警告] 指令 /{commandName} 的互動已逾時，無法傳送錯誤訊息。")
+            return
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send("指令執行過程發生錯誤。", ephemeral=True)
+            else:
+                await interaction.response.send_message("指令執行過程發生錯誤。", ephemeral=True)
+        except discord.NotFound as responseError:
+            if responseError.code == 10062:
+                print(f"[警告] 指令 /{commandName} 的互動已逾時，無法傳送錯誤訊息。")
+            else:
+                print(f"[錯誤] 無法回覆指令 /{commandName} 的錯誤: {responseError}")
+        except discord.HTTPException as responseError:
+            print(f"[錯誤] 無法回覆指令 /{commandName} 的錯誤: {responseError}")
 
 def readTokenFromFile(tokenFilePath: str = "BOT_TOKEN.txt") -> str:
     if os.path.exists(tokenFilePath):
