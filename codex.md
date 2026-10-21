@@ -1,6 +1,6 @@
 # Codex Handoff Notes
 
-Updated: 2026-10-20
+Updated: 2026-10-21
 
 ## Project summary
 
@@ -15,6 +15,8 @@ DcRB is a Discord bot that exposes local computer control through slash commands
 - The Discord owner session lasts 10 minutes. `/access_scope` adds, removes, and lists per-guild user and role assignments; `/access_logout` ends the caller's session.
 - Current user decision: remove every command-specific/secondary password check. All functional commands are authorized through the administrator-assigned access levels. Only the local owner password remains for `/admin_setup`.
 - Current user-selected default tiers: level 1 for high-impact/system startup operations; level 2 for shell/keyboard command execution; level 3 for regular read/control operations. `reg_startup` is level 1. Unclassified commands default to level 1.
+- Updated application-command error handling in `main.py` for Discord error 10062 (`Unknown interaction`): expired interactions are logged as warnings without attempting a second, doomed response. For other command errors, the handler uses a followup when the interaction was already acknowledged and catches HTTP failures while reporting.
+- `1.log` showed `/admin_setup`'s modal response arriving after Discord had expired the interaction, followed by a second 10062 from the global error handler. An expired interaction cannot be used to open the modal or send a reply; retry `/admin_setup` after the bot reconnects.
 
 ## Startup and module graph
 
@@ -66,5 +68,6 @@ Completed for the latest user request:
 2. Updated `dcrb_usage.csv` for the changed `/stop`, `/reject`, and `/token` signatures and removed its stale `--kill` entry.
 3. Rewrote `README.md` with setup, module dependencies, platform behavior, permission levels, commands, and runtime files.
 4. Created this handoff file.
+5. Made the global application-command error handler tolerate expired Discord interactions and avoid the secondary unhandled task exception shown in `1.log`.
 
 No tests have been run. After edits, inspect references for old password logic and run `git diff --check`; do not launch the bot during static handoff review because it may prompt for a local owner password or connect to Discord.
