@@ -104,6 +104,11 @@ class SystemCog(commands.Cog):
 
     @app_commands.command(name="startup", description="寫入開機指令 (綁定伺服器)")
     async def startupCommand(self, interaction: discord.Interaction, content: str):
+        if interaction.guild_id is None:
+            return await interaction.response.send_message(
+                "`/startup` 需在 Discord 伺服器中設定，因為開機指令會綁定該伺服器。",
+                ephemeral=True,
+            )
         configData = {
             "guild_id": interaction.guild_id,
             "content": content

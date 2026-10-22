@@ -333,6 +333,15 @@ class AccessManager:
             for targetLevel in levels
         }
 
+    def isLevelOneUserAnywhere(self, userId):
+        userId = str(userId)
+        for guildScope in self.config.get("guilds", {}).values():
+            userScopes = guildScope.get("users", {}) if isinstance(guildScope, dict) else {}
+            levelOneUsers = userScopes.get("1", []) if isinstance(userScopes, dict) else []
+            if userId in [str(item) for item in levelOneUsers]:
+                return True
+        return False
+
     async def checkCommandAccess(self, interaction, commandName=None):
         user = getattr(interaction, "user", None)
         if user is None or getattr(user, "bot", False):
@@ -347,14 +356,16 @@ class AccessManager:
         if commandName in MANAGEMENT_COMMAND_NAMES:
             return True
 
+        userId = str(getattr(user, "id", ""))
         guildId = getattr(interaction, "guild_id", None)
-        if guildId is None:
-            raise app_commands.CheckFailure("權限指令只能在已設定的伺服器中使用。")
-
         requiredLevel = int(self.config["command_levels"].get(commandName, 1))
+        if guildId is None:
+            if self.isLevelOneUserAnywhere(userId):
+                return True
+            raise app_commands.CheckFailure("私訊中僅已設定的層級 1 最高管理員可使用指令。")
+
         guildScope = self._getGuildScope(guildId)
         assignedLevels = []
-        userId = str(getattr(user, "id", ""))
         userScopes = guildScope.get("users", {})
         roleScopes = guildScope.get("roles", {})
 

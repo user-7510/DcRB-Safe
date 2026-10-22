@@ -77,6 +77,8 @@ eventModule ──文字指令──> command_dispatch ──查找已載入 Cog
 
 `owner_password.hash`、`access_control.json` 與其他本機設定檔已加入 `.gitignore`。修改最高管理員密碼時，刪除 `owner_password.hash`，再從終端重新啟動並設定新密碼。舊版留下的 `auth_secret.txt` 和 `password.json` 不再由程式讀取或更新；忽略規則保留以免遺留檔案被提交。
 
+已在任一伺服器設定為層級 1 的使用者，可在私訊中使用一般 Bot 指令；層級 2／3 使用者仍需在伺服器內執行。私訊中的層級 1 身分會依所有伺服器的層級 1 使用者清單判定。`/admin_setup`、`/access_scope`、`/access_logout` 是伺服器範圍管理指令，`/startup` 需綁定伺服器，因此仍須在伺服器中執行。
+
 ## 指令使用方式
 
 斜線指令在 Discord 中執行。Windows 和 Linux 各自提供平台適用的系統指令；詳細清單可執行 `/cmdlist`，來源是 `dcrb_usage.csv`。

@@ -56,6 +56,8 @@ class ControlCog(commands.Cog):
         def runTask():
             try:
                 taskFunc(stopEvent)
+            except Exception as errObj:
+                print(f"[控制] 背景輸入工作失敗：{type(errObj).__name__}: {errObj}")
             finally:
                 with self.remoteOperationLock:
                     self.inputStopEvents.discard(stopEvent)
@@ -160,15 +162,20 @@ class ControlCog(commands.Cog):
 
     @app_commands.command(name="keyboard", description="輸入字串")
     async def keyboardCommand(self, interaction: discord.Interaction, keys: str):
-        import keyboard
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         def keyboardTask(stopEvent):
+            # Import the native keyboard hook outside Discord's event loop.
+            # Some systems can stall while this package initializes its hook.
+            import keyboard
+
             for character in keys:
                 if stopEvent.is_set():
                     break
                 keyboard.write(character)
         if not self.startInputTask(keyboardTask):
-            return await interaction.response.send_message("遠端控制暫停中。", ephemeral=True)
-        await interaction.response.send_message(f"已輸入: {keys}")
+            return await interaction.followup.send("遠端控制暫停中，未執行輸入。", ephemeral=True)
+        await interaction.followup.send("已開始背景輸入。", ephemeral=True)
 
     @app_commands.command(name="key_wait", description="間隔輸入")
     async def keyWaitCommand(self, interaction: discord.Interaction, keys: str, interval: float):

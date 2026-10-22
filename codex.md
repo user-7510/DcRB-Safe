@@ -33,6 +33,7 @@ Windows configuration loads `authModule`, `controlModule`, `systemModule`, `even
 - Level 2: user IDs or role IDs.
 - Level 3: user IDs or role IDs.
 - The lowest numeric level grants the greatest access. A user assigned more than one level receives the strongest one.
+- In DMs, only a user assigned level 1 in at least one configured guild is authorized; level 2/3 access remains guild-only. Guild-scoped management commands and `/startup` remain guild-only.
 - Permission configuration is per guild in `access_control.json`; command levels are configurable in its `command_levels` map.
 - `audit_config.json` holds the deployment's Google Forms response URL and one long-answer field ID. `/audit_config` is available to level 1 administrators and writes this file. Audit records contain UTC time, command name, user ID, guild ID, and source, never arguments or output.
 - `/admin_setup`, `/access_scope`, and `/access_logout` are management commands and are excluded from ordinary command checks. Scope changes require the caller's valid owner session.
