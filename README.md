@@ -101,6 +101,8 @@ Windows 與 Linux 文字指令由 `dcrbs_events` 接收，格式為 `--指令名
 
 Windows 與 Linux 都支援以 `--` 開頭的文字指令，且套用與斜線指令相同的分級檢查。需在 Discord Developer Portal 開啟 Message Content 特權 Intent，並確認 Bot 有讀取訊息及在頻道回覆的權限。`/admin_setup`、`/access_scope`、`/access_logout` 僅能透過斜線指令使用。
 
+若文字指令沒有回覆，先確認 Bot 已重新啟動、啟動紀錄有載入 `dcrbs_events`，且 Discord Developer Portal 的 Message Content Intent 已開啟；收到 `--` 訊息時，Bot 主控台會記錄指令分派狀態。
+
 `/stop(duration)` 會暫停接收一般指令、停止循環視窗／螢幕操作、停止延遲鍵盤輸入，並暫停程序黑名單監控；到期後自動恢復接收指令及黑名單監控，但不會重啟已停止的循環操作。執行中的 shell 程序會繼續。`/panic_stop` 會停止上述操作並終止 Bot 追蹤中的 CMD、PowerShell 或 Bash 程序，之後需由層級 1 使用者執行 `/resume` 才會恢復接收指令。硬鎖會保存在本機 `dcrbs_panic_stop.lock`，Bot 重啟後仍維持鎖定；鎖定期間不會執行 `/startup` 的開機指令。`/resume` 可提前解除一般 `/stop` 暫停；已停止的循環操作不會自動重啟。這三個指令僅能透過斜線指令執行。
 
 `/startup` 可將 `--` 指令文字和伺服器 ID 寫入 `dcrbs_startup.json`；下次啟動並連線 Discord 後會還原執行。這項設定會由可使用層級 1 指令的管理員建立，啟動時作為已設定的自動化執行。

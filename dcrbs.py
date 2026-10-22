@@ -36,6 +36,8 @@ class BotRunner(commands.Bot):
 
     async def setup_hook(self):
         print("[資訊] 開始執行初始化設定...")
+        if not self.intents.message_content:
+            print("[警告] Message Content Intent 未啟用，Discord 不會提供文字指令內容。")
         configFilePath = self.detectEnvironmentConfig()
         await self.loadModulesFromJson(configFilePath)
         if "dcrbs_access_control" not in self.loadedModules:
@@ -77,6 +79,12 @@ class BotRunner(commands.Bot):
             configData = json.load(configFile)
         
         moduleList = configData.get("enabledModules", [])
+        if not isinstance(moduleList, list):
+            print("[警告] enabledModules 格式不正確，改用空模組清單。")
+            moduleList = []
+        if "dcrbs_events" not in moduleList:
+            print("[資訊] 將必要的文字指令模組 dcrbs_events 加入載入清單。")
+            moduleList.append("dcrbs_events")
         print(f"[資訊] 預計載入模組列表: {moduleList}")
 
         for moduleName in moduleList:

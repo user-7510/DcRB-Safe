@@ -42,14 +42,23 @@ class EventCog(commands.Cog):
 
         contentStr = msgObj.content
         if contentStr and contentStr.strip().startswith("--"):
-            fakeInterObj = FakeInteraction(msgObj)
-            attachment = msgObj.attachments[0] if msgObj.attachments else None
-            await dispatchTextCommands(
-                self.bot,
-                contentStr,
-                fakeInterObj,
-                attachment=attachment,
-            )
+            commandPreview = contentStr.strip().splitlines()[0][:100]
+            print(f"[文字指令] 收到 {commandPreview}（使用者 ID：{msgObj.author.id}）")
+            try:
+                fakeInterObj = FakeInteraction(msgObj)
+                attachment = msgObj.attachments[0] if msgObj.attachments else None
+                await dispatchTextCommands(
+                    self.bot,
+                    contentStr,
+                    fakeInterObj,
+                    attachment=attachment,
+                )
+            except Exception as errObj:
+                print(f"[文字指令] 分派失敗：{type(errObj).__name__}: {errObj}")
+                try:
+                    await msgObj.channel.send("文字指令處理失敗，請管理員查看 Bot 主控台紀錄。")
+                except Exception as replyErr:
+                    print(f"[文字指令] 無法傳送錯誤回覆：{type(replyErr).__name__}: {replyErr}")
             return
 
         await self.bot.process_commands(msgObj)
