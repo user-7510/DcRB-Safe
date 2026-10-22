@@ -67,6 +67,8 @@ Default command levels in `dcrbs_access_control.py`:
 
 ## Current task status
 
+Current user confirmation: `--` text commands respond in DMs but not in server channels in the current deployment. This is acceptable; README now directs users to use text commands in DMs and slash commands in guild channels. The code does not enforce DM-only handling. If guild text-command support is requested later, check the Discord Developer Portal Message Content Intent and channel permissions.
+
 Completed in the current worktree:
 
 1. Removed secondary password checks, password parameters, old password generators/storage helpers, and `/change_password`.
