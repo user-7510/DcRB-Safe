@@ -107,7 +107,7 @@ Windows 與 Linux 都支援以 `--` 開頭的文字指令，且套用與斜線�
 
 `/startup` 可將 `--` 指令文字和伺服器 ID 寫入 `dcrbs_startup.json`；下次啟動並連線 Discord 後會還原執行。這項設定會由可使用層級 1 指令的管理員建立，啟動時作為已設定的自動化執行。
 
-Windows 的 `/reg_startup` 會在目前使用者的 `Run` 登錄機碼新增 `dcrbs` 項目，使用 `pythonw.exe` 執行 `dcrbs.pyw`；設定時也會清除舊版 `WindowsExplorer` 項目。`/reg_startup_remove` 會移除 `dcrbs` 及舊版項目。`/shell_startup` 建立的捷徑則直接指向 `dcrbs.pyw`，並設定已保存的執行期資料夾為工作目錄。兩種方式都要求層級 1；移除登錄項目不會刪除 `/startup` 指令設定或啟動資料夾捷徑。
+Windows 的 `/reg_startup` 會在目前使用者的 `Run` 登錄機碼新增 `dcrbs` 項目，使用完整路徑的 `pythonw.exe` 執行 `dcrbs.pyw`；設定時也會清除舊版 `WindowsExplorer` 項目。`/reg_startup_remove` 會移除 `dcrbs` 及舊版項目。`/shell_startup` 建立的捷徑以同一個 `pythonw.exe` 為目標，將 `dcrbs.pyw` 完整路徑作為引數，並設定已保存的執行期資料夾為工作目錄，避免依賴 Windows 的 `.pyw` 檔案關聯。兩種自動啟動都透過同一個啟動器；即使 Windows Run 項目沒有工作目錄，啟動器也會先讀取保存的執行資料夾並切換到該目錄，再載入 Bot。啟動器會先將輸出寫入日誌，再解析執行資料夾；正常啟動後日誌位於執行期資料目錄的 `dcrbs_startup.log`，若在解析執行目錄前失敗，則寫入 `%APPDATA%\dcrbs\dcrbs_startup.log`（無法寫入時使用系統暫存目錄）。兩種自動啟動方式都要求層級 1；移除登錄項目不會刪除 `/startup` 指令設定或啟動資料夾捷徑。
 
 ## Google 表單指令稽核
 
@@ -134,6 +134,7 @@ Windows 的 `/reg_startup` 會在目前使用者的 `Run` 登錄機碼新增 `dc
 | `dcrbs_access_control.json` | 各伺服器的指令分級與使用者／角色白名單。 |
 | `dcrbs_panic_stop.lock` | `/panic_stop` 的本機硬鎖標記，由 `/resume` 清除。 |
 | `dcrbs_startup.json` | `/startup` 保存的自動執行文字及伺服器 ID。 |
+| `dcrbs_startup.log` | Windows `.pyw` 自動啟動的輸出與錯誤紀錄。 |
 | `dcrbs_audit_config.json` | Google 表單的回覆網址及稽核長答題欄位 ID；可由 `/audit_config` 寫入。 |
 | 使用者設定目錄中的 `dcrbs_runtime.json` | 保存首次選定的執行期資料夾；Windows 位於 `%APPDATA%\dcrbs`，Linux 位於 `$XDG_CONFIG_HOME/dcrbs` 或 `~/.config/dcrbs`。 |
 | `auth_secret.txt`、`password.json` | 舊版遺留檔案；目前程式不讀寫、不再要求其密碼。 |

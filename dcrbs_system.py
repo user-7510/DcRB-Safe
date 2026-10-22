@@ -54,6 +54,11 @@ def getPythonwPath():
     return str(pythonwPath)
 
 
+def getDcrbsStartupCommand():
+    """Return the interpreter and wrapper used by both Windows autostart options."""
+    return getPythonwPath(), getDcrbsPywPath()
+
+
 def escapePowerShellString(value):
     return str(value).replace("'", "''")
 
@@ -161,7 +166,7 @@ class SystemCog(commands.Cog):
     async def shellStartupCommand(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
         try:
-            pywPath = getDcrbsPywPath()
+            pythonwPath, pywPath = getDcrbsStartupCommand()
             runtimeDir = os.getcwd()
             startupDir = subprocess.check_output(["powershell", "-NoProfile", "-Command", "[Environment]::GetFolderPath('Startup')"], text=True).strip()
             if not startupDir:
@@ -170,12 +175,13 @@ class SystemCog(commands.Cog):
             psCmd = (
                 "$shell = New-Object -ComObject WScript.Shell; "
                 f"$s = $shell.CreateShortcut('{escapePowerShellString(shortcutPath)}'); "
-                f"$s.TargetPath = '{escapePowerShellString(pywPath)}'; "
+                f"$s.TargetPath = '{escapePowerShellString(pythonwPath)}'; "
+                f"$s.Arguments = '{escapePowerShellString(subprocess.list2cmdline([pywPath]))}'; "
                 f"$s.WorkingDirectory = '{escapePowerShellString(runtimeDir)}'; "
                 "$s.Save()"
             )
             subprocess.run(["powershell", "-NoProfile", "-Command", psCmd], check=True, capture_output=True)
-            await interaction.followup.send(f"已建立捷徑：{pywPath}")
+            await interaction.followup.send(f"已建立捷徑，以 pythonw.exe 啟動：{pywPath}")
         except Exception as errObj:
             await interaction.followup.send(f"失敗：{errObj}")
 
@@ -184,7 +190,8 @@ class SystemCog(commands.Cog):
         import winreg
         await interaction.response.defer(thinking=True)
         try:
-            commandLine = subprocess.list2cmdline([getPythonwPath(), getDcrbsPywPath()])
+            pythonwPath, pywPath = getDcrbsStartupCommand()
+            commandLine = subprocess.list2cmdline([pythonwPath, pywPath])
             with winreg.CreateKeyEx(
                 winreg.HKEY_CURRENT_USER,
                 r"Software\Microsoft\Windows\CurrentVersion\Run",
@@ -196,7 +203,10 @@ class SystemCog(commands.Cog):
                     winreg.DeleteValue(winKey, "WindowsExplorer")
                 except FileNotFoundError:
                     pass
-            await interaction.followup.send("登錄檔自動啟動已設定為 pythonw.exe 執行 dcrbs.pyw。")
+            await interaction.followup.send(
+                "登錄檔自動啟動已設定為 pythonw.exe 執行 dcrbs.pyw。"
+                "啟動輸出會寫入執行資料夾的 dcrbs_startup.log。"
+            )
         except Exception as errObj:
             await interaction.followup.send(f"失敗：{errObj}")
 

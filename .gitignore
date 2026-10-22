@@ -12,4 +12,5 @@ dcrbs_audit_config.json.tmp
 auth_secret.txt
 password.json
 dcrbs_startup.json
+dcrbs_startup.log
 
