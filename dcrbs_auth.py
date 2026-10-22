@@ -8,7 +8,7 @@ from discord.ext import commands
 
 
 stopUntilTimestamp = None
-PANIC_STOP_LOCK_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "panic_stop.lock")
+PANIC_STOP_LOCK_PATH = os.path.join(os.getcwd(), "dcrbs_panic_stop.lock")
 stopLocked = os.path.exists(PANIC_STOP_LOCK_PATH)
 MANAGEMENT_COMMAND_NAMES = {"admin_setup", "access_scope", "access_logout"}
 STOP_CONTROL_COMMAND_NAMES = {"resume", "panic_stop"}
@@ -161,7 +161,7 @@ class AuthCog(commands.Cog):
     @app_commands.command(name="token", description="寫入 Token")
     async def tokenCommand(self, interaction: discord.Interaction, token: str):
         try:
-            with open("BOT_TOKEN.txt", "w", encoding="utf-8") as fileObj:
+            with open("dcrbs_token.txt", "w", encoding="utf-8") as fileObj:
                 fileObj.write(token.strip())
             await interaction.response.send_message("更新成功。")
         except Exception as errObj:
@@ -179,9 +179,9 @@ class AuthCog(commands.Cog):
         entry_id: str,
     ):
         try:
-            import auditLog
+            import dcrbs_audit_log
 
-            auditLog.configureAuditForm(form_url, entry_id)
+            dcrbs_audit_log.configureAuditForm(form_url, entry_id)
             await interaction.response.send_message(
                 "Google 表單稽核已設定；後續指令會記錄時間、指令名稱、使用者 ID、伺服器 ID 與來源，不會記錄參數或輸出。",
                 ephemeral=True,

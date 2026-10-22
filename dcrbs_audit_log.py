@@ -14,7 +14,7 @@ from urllib.parse import urlsplit, urlunsplit
 import aiohttp
 
 
-AUDIT_CONFIG_PATH = "audit_config.json"
+AUDIT_CONFIG_PATH = "dcrbs_audit_config.json"
 ENTRY_ID_PATTERN = re.compile(r"^[0-9]+$")
 FORM_PATH_PATTERN = re.compile(r"^/forms/d/(e/)?([^/]+)/(?:viewform|formResponse|edit)$")
 _pendingTasks = set()

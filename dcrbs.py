@@ -7,9 +7,10 @@ import multiprocessing
 import discord
 from discord import app_commands
 from discord.ext import commands
-from command_dispatch import dispatchTextCommands
+from dcrbs_command_dispatch import dispatchTextCommands
+from dcrbs_version import __version__
 
-dcrbVersion = "6.0.0"
+dcrbsVersion = __version__
 
 class BotRunner(commands.Bot):
     def __init__(self, **kwargs):
@@ -21,15 +22,15 @@ class BotRunner(commands.Bot):
         if not self._shutdownCleanupDone:
             self._shutdownCleanupDone = True
             try:
-                if "authModule" in self.loadedModules:
-                    import authModule
-                    await authModule.runRemoteControlHooks(
+                if "dcrbs_auth" in self.loadedModules:
+                    import dcrbs_auth
+                    await dcrbs_auth.runRemoteControlHooks(
                         self, "stopRemoteOperations", hard=True
                     )
             finally:
                 await super().close()
-            if "auditLog" in sys.modules:
-                await sys.modules["auditLog"].flushPendingRecords()
+            if "dcrbs_audit_log" in sys.modules:
+                await sys.modules["dcrbs_audit_log"].flushPendingRecords()
             return
         await super().close()
 
@@ -37,18 +38,18 @@ class BotRunner(commands.Bot):
         print("[資訊] 開始執行初始化設定...")
         configFilePath = self.detectEnvironmentConfig()
         await self.loadModulesFromJson(configFilePath)
-        if "accessControl" not in self.loadedModules:
+        if "dcrbs_access_control" not in self.loadedModules:
             raise RuntimeError("權限模組載入失敗，為避免未受控指令執行，停止啟動。")
-        if "authModule" in self.loadedModules:
-            import authModule
-            authModule.applyGeneralChecks(self)
-            if authModule.stopLocked:
-                await authModule.runRemoteControlHooks(
+        if "dcrbs_auth" in self.loadedModules:
+            import dcrbs_auth
+            dcrbs_auth.applyGeneralChecks(self)
+            if dcrbs_auth.stopLocked:
+                await dcrbs_auth.runRemoteControlHooks(
                     self, "stopRemoteOperations", hard=False
                 )
-        if "accessControl" in self.loadedModules:
-            import accessControl
-            accessControl.applyAccessChecks(self)
+        if "dcrbs_access_control" in self.loadedModules:
+            import dcrbs_access_control
+            dcrbs_access_control.applyAccessChecks(self)
         
         self.tree.on_error = self.onAppCommandError
         syncedCmds = await self.tree.sync()
@@ -59,9 +60,9 @@ class BotRunner(commands.Bot):
         currentOs = platform.system()
         print(f"[資訊] 偵測到執行環境作業系統: {currentOs}")
         if currentOs == "Linux":
-            configPath = "modules_linux.json"
+            configPath = "dcrbs_modules_linux.json"
         else:
-            configPath = "modules.json"
+            configPath = "dcrbs_modules.json"
         
         print(f"[資訊] 選擇設定檔: {configPath}")
         return configPath
@@ -91,19 +92,19 @@ class BotRunner(commands.Bot):
 
     async def executeStartupConfig(self):
         await self.wait_until_ready()
-        if "authModule" in self.loadedModules:
-            import authModule
-            if authModule.stopLocked:
+        if "dcrbs_auth" in self.loadedModules:
+            import dcrbs_auth
+            if dcrbs_auth.stopLocked:
                 print("[遠端控制] panic stop 硬鎖啟用中，略過開機指令。")
                 return
-        if not os.path.exists("config.json"):
+        if not os.path.exists("dcrbs_startup.json"):
             return
             
         try:
-            with open("config.json", "r", encoding="utf-8") as fileObj:
+            with open("dcrbs_startup.json", "r", encoding="utf-8") as fileObj:
                 configData = json.load(fileObj)
         except Exception as e:
-            print(f"[錯誤] 無法讀取 config.json: {e}")
+            print(f"[錯誤] 無法讀取 dcrbs_startup.json: {e}")
             return
             
         contentStr = configData.get("content", "").strip()
@@ -169,9 +170,9 @@ class BotRunner(commands.Bot):
             userName = interaction.user.name
             print(f"[指令] 收到來自使用者 {userName} 的指令: /{commandName}")
             try:
-                import auditLog
+                import dcrbs_audit_log
 
-                auditLog.scheduleCommandRecord(
+                dcrbs_audit_log.scheduleCommandRecord(
                     interaction,
                     commandName,
                     source="slash",
@@ -205,7 +206,7 @@ class BotRunner(commands.Bot):
         except discord.HTTPException as responseError:
             print(f"[錯誤] 無法回覆指令 /{commandName} 的錯誤: {responseError}")
 
-def readTokenFromFile(tokenFilePath: str = "BOT_TOKEN.txt") -> str:
+def readTokenFromFile(tokenFilePath: str = "dcrbs_token.txt") -> str:
     if os.path.exists(tokenFilePath):
         print(f"[資訊] 讀取 Token 檔案: {tokenFilePath}")
         with open(tokenFilePath, "r", encoding="utf-8") as tokenFile:
@@ -215,16 +216,20 @@ def readTokenFromFile(tokenFilePath: str = "BOT_TOKEN.txt") -> str:
 
 botInstance = BotRunner(command_prefix="!", intents=discord.Intents.all())
 
-def main():
-    os.chdir(os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)))
+def main(runtime_dir=None):
+    if runtime_dir is None:
+        runtime_dir = os.path.dirname(
+            sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
+        )
+    os.chdir(os.path.abspath(runtime_dir))
     print(f"[資訊] 工作目錄設定為: {os.getcwd()}")
     try:
-        import accessControl
-        accessControl.initializeOwnerPassword()
+        import dcrbs_access_control
+        dcrbs_access_control.initializeOwnerPassword()
     except Exception as errObj:
         print(f"[錯誤] 最高管理者密碼初始化失敗：{errObj}")
         return
-    botToken = readTokenFromFile("BOT_TOKEN.txt")
+    botToken = readTokenFromFile("dcrbs_token.txt")
     if botToken:
         print("[資訊] Bot 正式啟動連線...")
         botInstance.run(botToken)

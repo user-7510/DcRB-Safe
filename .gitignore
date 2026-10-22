@@ -1,14 +1,15 @@
 BOT*.txt
+dcrbs_token.txt
 owner_password.txt
-owner_password.hash
-owner_password.hash.tmp
-access_control.json
-access_control.json.tmp
-panic_stop.lock
-panic_stop.lock.tmp
-audit_config.json
-audit_config.json.tmp
+dcrbs_owner_password.hash
+dcrbs_owner_password.hash.tmp
+dcrbs_access_control.json
+dcrbs_access_control.json.tmp
+dcrbs_panic_stop.lock
+dcrbs_panic_stop.lock.tmp
+dcrbs_audit_config.json
+dcrbs_audit_config.json.tmp
 auth_secret.txt
 password.json
-config.json
+dcrbs_startup.json
 

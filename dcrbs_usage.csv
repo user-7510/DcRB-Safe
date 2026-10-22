@@ -25,6 +25,7 @@
 /shell_startup,,僅限斜線指令,層級 1；建立開機自啟動捷徑
 /token,,僅限斜線指令,由最高管理員白名單授權後更新 Bot Token
 /reg_startup,,僅限斜線指令,層級 1；設定登錄檔開機自啟
+/reg_startup_remove,,僅限斜線指令,層級 1；移除登錄檔中的開機自啟項目
 /powershell,,僅限斜線指令,
 /help,,僅限斜線指令,check以查看回應
 /admin_setup,,僅限斜線指令,私密輸入本機最高管理員密碼登入權限管理

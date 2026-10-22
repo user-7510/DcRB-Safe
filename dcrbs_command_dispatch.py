@@ -14,6 +14,8 @@ SLASH_ONLY_COMMAND_NAMES = {
     "access_logout",
     "panic_stop",
     "resume",
+    "reg_startup",
+    "reg_startup_remove",
 }
 
 
@@ -75,27 +77,41 @@ async def dispatchTextCommands(
         await interaction.response.send_message(str(errObj))
         return
 
-    for segment in (part.strip() for part in content.strip().split("--") if part.strip()):
+    segments = [part.strip() for part in content.strip().split("--") if part.strip()]
+    if not segments:
+        await interaction.response.send_message("請使用 `--指令名稱` 或 `--指令名稱(參數=值)` 格式。")
+        return
+
+    for segment in segments:
         match = re.fullmatch(r"(\w+)(?:\((.*?)\))?", segment)
         if not match:
+            await interaction.response.send_message(
+                f"無法解析文字指令 `{segment[:80]}`；請使用 `--指令名稱(參數=值)` 格式。"
+            )
             continue
 
         commandName = match.group(1).lower()
         commandEntry = commandMap.get(commandName)
         if commandEntry or commandName in SLASH_ONLY_COMMAND_NAMES:
             try:
-                import auditLog
+                import dcrbs_audit_log
 
-                auditLog.scheduleCommandRecord(interaction, commandName, auditSource)
+                dcrbs_audit_log.scheduleCommandRecord(interaction, commandName, auditSource)
             except Exception as errObj:
                 print(f"[稽核] 無法排入指令紀錄：{type(errObj).__name__}")
         if commandName in SLASH_ONLY_COMMAND_NAMES:
             await interaction.response.send_message("此指令只能透過斜線指令使用。")
             continue
         if not commandEntry:
+            await interaction.response.send_message(
+                f"找不到文字指令 `--{commandName}`；請確認目前平台已載入該指令。"
+            )
             continue
 
         commandObj, cogObj = commandEntry
+        # Text invocations use a lightweight Interaction adapter. Expose the
+        # slash command name so shared checks see the same command context.
+        interaction._permission_command_name = commandName
         signature = inspect.signature(commandObj.callback)
         dataParams = [
             param for param in signature.parameters.values()

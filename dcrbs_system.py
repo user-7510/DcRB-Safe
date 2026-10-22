@@ -9,6 +9,7 @@ import json
 import discord
 from discord import app_commands
 from discord.ext import commands
+from dcrbs_version import __version__ as dcrbsVersion
 
 def getHostIp():
     try:
@@ -77,7 +78,8 @@ class SystemCog(commands.Cog):
         msgText = (f"**裝置名稱**：{hostName}\n"
                    f"**IPv4 位址**：{getHostIp()}\n"
                    f"**MAC 位址**：{macAddr}\n"
-                   f"**系統型號**：{platform.system()} {platform.release()} ({platform.machine()})\n")
+                   f"**系統型號**：{platform.system()} {platform.release()} ({platform.machine()})\n"
+                   f"**dcrbs 版本**：{dcrbsVersion}\n")
         await interaction.response.send_message(msgText)
 
     @app_commands.command(name="shutdown", description="遠端關機")
@@ -114,7 +116,7 @@ class SystemCog(commands.Cog):
             "content": content
         }
         try:
-            with open("config.json", "w", encoding="utf-8") as fileObj:
+            with open("dcrbs_startup.json", "w", encoding="utf-8") as fileObj:
                 json.dump(configData, fileObj, ensure_ascii=False, indent=4)
             await interaction.response.send_message("已成功寫入開機自動執行組態 (JSON)。")
         except Exception as errObj:
@@ -145,6 +147,24 @@ class SystemCog(commands.Cog):
         except Exception as errObj:
             await interaction.followup.send(f"失敗：{errObj}")
 
+    @app_commands.command(name="reg_startup_remove", description="取消登錄檔開機自啟")
+    async def regStartupRemoveCommand(self, interaction: discord.Interaction):
+        import winreg
+        await interaction.response.defer(thinking=True)
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0,
+                winreg.KEY_WRITE,
+            ) as winKey:
+                winreg.DeleteValue(winKey, "WindowsExplorer")
+            await interaction.followup.send("已取消登錄檔開機自動啟動。")
+        except FileNotFoundError:
+            await interaction.followup.send("找不到登錄檔自動啟動項目，可能已停用。")
+        except Exception as errObj:
+            await interaction.followup.send(f"取消失敗：{errObj}")
+
     @app_commands.command(name="powershell", description="執行 PowerShell 指令")
     async def powershellCommand(self, interaction: discord.Interaction, commands: str):
         await interaction.response.defer(thinking=True)
@@ -164,10 +184,11 @@ class SystemCog(commands.Cog):
     @app_commands.command(name="cmdlist", description="指令列表")
     async def cmdlistCommand(self, interaction: discord.Interaction):
         try:
-            with open("dcrb_usage.csv","r")as f:await interaction.response.send_message(f.read())
+            with open("dcrbs_usage.csv","r")as f:await interaction.response.send_message(f.read())
         except Exception:
             await interaction.response.send_message(
-                "cmd device shutdown volume startup shell_startup reg_startup powershell "
+                "cmd device shutdown volume startup shell_startup reg_startup "
+                "reg_startup_remove powershell "
                 "task_list cmdlist admin_setup access_scope access_logout"
             )
 

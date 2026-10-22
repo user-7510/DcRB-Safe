@@ -1,0 +1,9 @@
+{
+  "version": "0.0.1",
+  "enabledModules": [
+    "dcrbs_auth",
+    "dcrbs_linux",
+    "dcrbs_events",
+    "dcrbs_access_control"
+  ]
+}

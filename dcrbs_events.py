@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from command_dispatch import dispatchTextCommands
+from dcrbs_command_dispatch import dispatchTextCommands
 
 class FakeResponse:
     def __init__(self, msgObj: discord.Message):

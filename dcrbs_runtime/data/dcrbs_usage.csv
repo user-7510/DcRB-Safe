@@ -1,0 +1,36 @@
+﻿斜線指令,別名,用法,備註
+/stop,--stop,"--stop(duration=秒數)",最高管理員白名單授權
+/panic_stop,,僅限斜線指令,層級 1；強制停止循環操作及 Bot 追蹤中的 shell 程序，需用/resume解除
+/resume,,僅限斜線指令,層級 1；提前解除暫停，不會重啟已停止的循環操作
+/txt,--txt,--txt(text=文字),tmp.txt會自動刪除
+/shutdown,--shutdown,--shutdown,強制關機，不會重開(重開請用/cmd)
+/device,--device,--device,
+/msg,--msg,--msg(text=訊息),會暴露程式位置
+/web,--web,--web(url=有效連結),只會用Chrome
+/reject,--reject,--reject,最高管理員白名單授權
+/cmd,--cmd,--cmd(commands=指令),換行是一種藝術
+/key,--key,--key(keys=按鍵),可以按特殊鍵
+/keyboard,--keyboard,--keyboard(keys=文字),直接輸入字串
+/key_wait,--key_wait,"key_wait(keys=按鍵,interval=間隔)",
+/close,--close,--close(keyword=關鍵字),包含就關閉，優雅關閉
+/close_loop,--close_loop,"--close_loop(interval=間隔,keyword=關鍵字)",包含就關閉，優雅關閉
+/volume,--volume,--volume(level=音量),0~100
+/monitor_off,--monitor_off,--monitor_off(interval=間隔),
+/monitor_on,--monitor_on,--monitor_on,
+/screenshot,--screenshot,--screenshot,在UAC或沙盒中可能不如預期
+/screenshot_notify,直接傳圖片,僅限斜線指令,會暴露程式位置
+/blackade,--blackade,--blackade(keywords=關鍵字),約5秒關閉一次，終止程序
+/unblackade,--unblackade,--unblackade(keywords=關鍵字),跟blackade的關鍵字要一樣
+/startup,,僅限斜線指令,層級 1；開機指令由最高管理員設定
+/shell_startup,,僅限斜線指令,層級 1；建立開機自啟動捷徑
+/token,,僅限斜線指令,由最高管理員白名單授權後更新 Bot Token
+/reg_startup,,僅限斜線指令,層級 1；設定登錄檔開機自啟
+/reg_startup_remove,,僅限斜線指令,層級 1；移除登錄檔中的開機自啟項目
+/powershell,,僅限斜線指令,
+/help,,僅限斜線指令,check以查看回應
+/admin_setup,,僅限斜線指令,私密輸入本機最高管理員密碼登入權限管理
+/access_scope,,僅限斜線指令,登入後管理本伺服器使用者與角色白名單
+/access_logout,,僅限斜線指令,結束權限管理登入
+/audit_config,,僅限斜線指令,層級 1；設定 Google 表單稽核網址與長答欄位 ID
+/task_list,--task_list,--task_list,
+/cmdlist,--cmdlist,cmdlist,

@@ -15,8 +15,8 @@ from discord import app_commands
 from discord.ext import commands
 
 
-ACCESS_CONFIG_PATH = "access_control.json"
-OWNER_PASSWORD_PATH = "owner_password.hash"
+ACCESS_CONFIG_PATH = "dcrbs_access_control.json"
+OWNER_PASSWORD_PATH = "dcrbs_owner_password.hash"
 LEGACY_OWNER_PASSWORD_PATH = "owner_password.txt"
 OWNER_SESSION_SECONDS = 600
 OWNER_PASSWORD_MIN_LENGTH = 12
@@ -32,6 +32,7 @@ FIXED_LEVEL_ONE_COMMANDS = {
     "startup",
     "shell_startup",
     "reg_startup",
+    "reg_startup_remove",
     "audit_config",
 }
 
@@ -47,6 +48,7 @@ DEFAULT_COMMAND_LEVELS = {
     "powershell": 1,
     "cmd": 1,
     "reg_startup": 1,
+    "reg_startup_remove": 1,
     "audit_config": 1,
     "key": 2,
     "keyboard": 2,
@@ -174,7 +176,7 @@ def _ensureInteractiveTerminal():
         except Exception:
             pass
     raise RuntimeError(
-        "首次設定最高管理者密碼需要互動式終端；請在終端執行 python main.py。"
+        "首次設定最高管理者密碼需要互動式終端；請在終端執行 python dcrbs.py。"
     )
 
 
@@ -515,15 +517,15 @@ async def setup(botObj: commands.Bot):
     if not os.path.exists(ACCESS_CONFIG_PATH):
         accessManager.saveConfig()
     if not os.path.exists(OWNER_PASSWORD_PATH):
-        raise RuntimeError("最高管理者密碼尚未初始化，請先使用 python main.py 啟動程式。")
+        raise RuntimeError("最高管理者密碼尚未初始化，請先使用 python dcrbs.py 啟動程式。")
 
 
 def applyAccessChecks(botObj: commands.Bot):
     for commandObj in botObj.tree.get_commands():
         if commandObj.name in MANAGEMENT_COMMAND_NAMES:
             continue
-        if not any(getattr(check, "_dcrb_access_check", False) for check in commandObj.checks):
+        if not any(getattr(check, "_dcrbs_access_check", False) for check in commandObj.checks):
             async def commandAccessCheck(interaction, commandName=commandObj.name):
                 return await accessManager.checkCommandAccess(interaction, commandName)
-            commandAccessCheck._dcrb_access_check = True
+            commandAccessCheck._dcrbs_access_check = True
             commandObj.checks.append(commandAccessCheck)

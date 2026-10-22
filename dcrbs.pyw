@@ -1,5 +1,5 @@
 import multiprocessing
-from main import main
+from dcrbs import main
 
 
 if __name__ == "__main__":

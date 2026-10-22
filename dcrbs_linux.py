@@ -9,6 +9,7 @@ import psutil
 import discord
 from discord import app_commands
 from discord.ext import commands
+from dcrbs_version import __version__ as dcrbsVersion
 
 def getHostIp():
     try:
@@ -70,6 +71,7 @@ class LinuxCog(commands.Cog):
         msgText = (f"**裝置名稱**：{hostName}\n"
                    f"**IPv4 位址**：{getHostIp()}\n"
                    f"**核心版本**：{platform.system()} {platform.release()}\n"
+                   f"**dcrbs 版本**：{dcrbsVersion}\n"
                    f"**執行環境**：{envType}\n")
         await interaction.response.send_message(msgText)
 
