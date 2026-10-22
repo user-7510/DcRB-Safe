@@ -6,6 +6,8 @@ import socket
 import platform
 import subprocess
 import json
+import sysconfig
+from pathlib import Path
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -21,6 +23,39 @@ def getHostIp():
             return socket.gethostbyname(socket.gethostname())
         except Exception:
             return "IP_UNKNOWN"
+
+
+def getDcrbsPywPath():
+    candidates = []
+    invokedPath = Path(sys.argv[0]).expanduser()
+    if invokedPath.name.lower() == "dcrbs.pyw":
+        candidates.append(invokedPath)
+    candidates.append(Path(__file__).resolve().with_name("dcrbs.pyw"))
+    candidates.append(Path(sysconfig.get_path("scripts")) / "dcrbs.pyw")
+    try:
+        candidates.append(Path(sysconfig.get_path("scripts", scheme="nt_user")) / "dcrbs.pyw")
+    except (KeyError, ValueError):
+        pass
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+    raise FileNotFoundError(
+        "找不到 dcrbs.pyw；請確認安裝目錄包含 Windows 啟動包裝器。"
+    )
+
+
+def getPythonwPath():
+    interpreterPath = Path(sys.executable).resolve()
+    if interpreterPath.name.lower() == "pythonw.exe":
+        return str(interpreterPath)
+    pythonwPath = interpreterPath.with_name("pythonw.exe")
+    if not pythonwPath.is_file():
+        raise FileNotFoundError(f"找不到 Python 視窗版執行檔：{pythonwPath}")
+    return str(pythonwPath)
+
+
+def escapePowerShellString(value):
+    return str(value).replace("'", "''")
 
 class SystemCog(commands.Cog):
     def __init__(self, bot):
@@ -126,12 +161,21 @@ class SystemCog(commands.Cog):
     async def shellStartupCommand(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
         try:
-            exePath = sys.executable if getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dcrb.exe')
-            scriptDir = os.path.dirname(exePath)
+            pywPath = getDcrbsPywPath()
+            runtimeDir = os.getcwd()
             startupDir = subprocess.check_output(["powershell", "-NoProfile", "-Command", "[Environment]::GetFolderPath('Startup')"], text=True).strip()
-            psCmd = f"$s = (New-Object -ComObject WScript.Shell).CreateShortcut('{os.path.join(startupDir, 'dcrb.lnk')}'); $s.TargetPath = '{exePath}'; $s.WorkingDirectory = '{scriptDir}'; $s.IconLocation = '{exePath}'; $s.Save()"
+            if not startupDir:
+                raise RuntimeError("無法取得目前使用者的啟動資料夾路徑。")
+            shortcutPath = os.path.join(startupDir, "dcrbs.lnk")
+            psCmd = (
+                "$shell = New-Object -ComObject WScript.Shell; "
+                f"$s = $shell.CreateShortcut('{escapePowerShellString(shortcutPath)}'); "
+                f"$s.TargetPath = '{escapePowerShellString(pywPath)}'; "
+                f"$s.WorkingDirectory = '{escapePowerShellString(runtimeDir)}'; "
+                "$s.Save()"
+            )
             subprocess.run(["powershell", "-NoProfile", "-Command", psCmd], check=True, capture_output=True)
-            await interaction.followup.send("已建立捷徑。")
+            await interaction.followup.send(f"已建立捷徑：{pywPath}")
         except Exception as errObj:
             await interaction.followup.send(f"失敗：{errObj}")
 
@@ -140,10 +184,19 @@ class SystemCog(commands.Cog):
         import winreg
         await interaction.response.defer(thinking=True)
         try:
-            exePath = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(sys.argv[0])
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_WRITE) as winKey:
-                winreg.SetValueEx(winKey, "WindowsExplorer", 0, winreg.REG_SZ, exePath)
-            await interaction.followup.send("登錄檔設定成功。")
+            commandLine = subprocess.list2cmdline([getPythonwPath(), getDcrbsPywPath()])
+            with winreg.CreateKeyEx(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0,
+                winreg.KEY_SET_VALUE,
+            ) as winKey:
+                winreg.SetValueEx(winKey, "dcrbs", 0, winreg.REG_SZ, commandLine)
+                try:
+                    winreg.DeleteValue(winKey, "WindowsExplorer")
+                except FileNotFoundError:
+                    pass
+            await interaction.followup.send("登錄檔自動啟動已設定為 pythonw.exe 執行 dcrbs.pyw。")
         except Exception as errObj:
             await interaction.followup.send(f"失敗：{errObj}")
 
@@ -152,14 +205,23 @@ class SystemCog(commands.Cog):
         import winreg
         await interaction.response.defer(thinking=True)
         try:
+            removedValues = []
             with winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
                 r"Software\Microsoft\Windows\CurrentVersion\Run",
                 0,
                 winreg.KEY_WRITE,
             ) as winKey:
-                winreg.DeleteValue(winKey, "WindowsExplorer")
-            await interaction.followup.send("已取消登錄檔開機自動啟動。")
+                for valueName in ("dcrbs", "WindowsExplorer"):
+                    try:
+                        winreg.DeleteValue(winKey, valueName)
+                        removedValues.append(valueName)
+                    except FileNotFoundError:
+                        pass
+            if removedValues:
+                await interaction.followup.send("已取消 dcrbs 登錄檔自動啟動。")
+            else:
+                await interaction.followup.send("找不到 dcrbs 登錄檔自動啟動項目，可能已停用。")
         except FileNotFoundError:
             await interaction.followup.send("找不到登錄檔自動啟動項目，可能已停用。")
         except Exception as errObj:

@@ -69,6 +69,8 @@ Default command levels in `dcrbs_access_control.py`:
 
 Current user confirmation: `--` text commands respond in DMs but not in server channels in the current deployment. This is acceptable; README now directs users to use text commands in DMs and slash commands in guild channels. The code does not enforce DM-only handling. If guild text-command support is requested later, check the Discord Developer Portal Message Content Intent and channel permissions.
 
+Current startup fixes: `dcrbs_runtime/paths.py` records the first selected working directory under the user's dcrbs configuration directory and ensures packaged defaults are copied into it on both CLI and direct startup. The package CLI and `dcrbs.main()` resolve runtime data through that saved path; changing it requires editing/removing `dcrbs_runtime.json` before the next launch. The package installs `dcrbs.pyw` under the Python Scripts directory. Windows Run autostart now runs `pythonw.exe` with `dcrbs.pyw` and a dcrbs registry value; `/shell_startup` creates a shortcut targeting `dcrbs.pyw` with the saved runtime directory as its working directory. `/reg_startup_remove` removes both the new `dcrbs` registry value and the older `WindowsExplorer` value.
+
 Completed in the current worktree:
 
 1. Removed secondary password checks, password parameters, old password generators/storage helpers, and `/change_password`.

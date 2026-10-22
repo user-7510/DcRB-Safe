@@ -27,6 +27,7 @@ setup(
     ],
     packages=["dcrbs_runtime"],
     package_data={"dcrbs_runtime": ["data/*.json", "data/*.csv"]},
+    data_files=[("Scripts", ["dcrbs.pyw"])],
     install_requires=[
         "discord.py",
         "aiohttp",

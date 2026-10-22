@@ -17,7 +17,7 @@ python -m pip install packages/dcrbs_0.0.1.zip
 dcrbs
 ```
 
-`dcrbs` 會以執行時所在目錄作為執行期資料目錄；請在該目錄建立 `dcrbs_token.txt`。平台模組設定和指令表會在首次啟動時複製到該目錄，既有檔案不會被覆寫。
+第一次啟動時，`dcrbs` 會將當前工作目錄確立為執行期資料目錄，並把路徑保存到使用者設定目錄的 `dcrbs_runtime.json`。之後手動啟動及 Windows 自動啟動都會使用這個資料夾，請先在預定的執行目錄啟動程式。Windows 設定檔位於 `%APPDATA%\dcrbs\dcrbs_runtime.json`；Linux 使用 `$XDG_CONFIG_HOME/dcrbs/dcrbs_runtime.json`，未設定 `XDG_CONFIG_HOME` 時使用 `~/.config/dcrbs/dcrbs_runtime.json`。若要更換執行目錄，停止 Bot 後修改或刪除此設定檔，再從新的目錄啟動。請在執行期資料目錄建立 `dcrbs_token.txt`。平台模組設定和指令表會在首次啟動時複製到該目錄，既有檔案不會被覆寫。
 
 在程式目錄建立 `dcrbs_token.txt`，填入 Discord Bot Token，然後從終端啟動：
 
@@ -29,7 +29,7 @@ Windows 也可用 `python dcrbs.pyw` 啟動。若首次設定密碼時沒有互�
 
 ## 啟動及檔案相依性
 
-`dcrbs.py` 先將工作目錄切到程式目錄，初始化本機最高管理員密碼，再讀取 `dcrbs_token.txt`。登入 Discord 後，程式依 `platform.system()` 載入模組設定：Linux 使用 `dcrbs_modules_linux.json`；其他作業系統使用 `dcrbs_modules.json`。目前其他作業系統會載入 Windows 組態，**不建議部署於 macOS**，因為 macOS 會載入 Windows 專用模組與指令。
+`dcrbs.py` 先讀取已保存的執行期資料夾；首次啟動則使用當前工作目錄並保存路徑，接著初始化最高管理員密碼並讀取 `dcrbs_token.txt`。登入 Discord 後，程式依 `platform.system()` 載入模組設定：Linux 使用 `dcrbs_modules_linux.json`；其他作業系統使用 `dcrbs_modules.json`。目前其他作業系統會載入 Windows 組態，**不建議部署於 macOS**，因為 macOS 會載入 Windows 專用模組與指令。
 
 每個設定檔列出要載入的 Python 模組。模組的 `setup(bot)` 會註冊 Cog 和斜線指令。載入完成後，`dcrbs.py` 套用一般檢查及 `dcrbs_access_control` 分級檢查，再同步指令。若權限模組載入失敗，程式會停止，避免指令在沒有分級授權時運作。
 
@@ -107,7 +107,7 @@ Windows 與 Linux 都支援以 `--` 開頭的文字指令，且套用與斜線�
 
 `/startup` 可將 `--` 指令文字和伺服器 ID 寫入 `dcrbs_startup.json`；下次啟動並連線 Discord 後會還原執行。這項設定會由可使用層級 1 指令的管理員建立，啟動時作為已設定的自動化執行。
 
-Windows 的 `/reg_startup` 會在目前使用者的 `Run` 登錄機碼新增啟動項目；`/reg_startup_remove` 會移除該指令建立的 `WindowsExplorer` 項目。兩者都要求層級 1。移除登錄項目不會刪除 `/startup` 指令設定或 `/shell_startup` 建立的啟動捷徑。
+Windows 的 `/reg_startup` 會在目前使用者的 `Run` 登錄機碼新增 `dcrbs` 項目，使用 `pythonw.exe` 執行 `dcrbs.pyw`；設定時也會清除舊版 `WindowsExplorer` 項目。`/reg_startup_remove` 會移除 `dcrbs` 及舊版項目。`/shell_startup` 建立的捷徑則直接指向 `dcrbs.pyw`，並設定已保存的執行期資料夾為工作目錄。兩種方式都要求層級 1；移除登錄項目不會刪除 `/startup` 指令設定或啟動資料夾捷徑。
 
 ## Google 表單指令稽核
 
@@ -135,6 +135,7 @@ Windows 的 `/reg_startup` 會在目前使用者的 `Run` 登錄機碼新增啟�
 | `dcrbs_panic_stop.lock` | `/panic_stop` 的本機硬鎖標記，由 `/resume` 清除。 |
 | `dcrbs_startup.json` | `/startup` 保存的自動執行文字及伺服器 ID。 |
 | `dcrbs_audit_config.json` | Google 表單的回覆網址及稽核長答題欄位 ID；可由 `/audit_config` 寫入。 |
+| 使用者設定目錄中的 `dcrbs_runtime.json` | 保存首次選定的執行期資料夾；Windows 位於 `%APPDATA%\dcrbs`，Linux 位於 `$XDG_CONFIG_HOME/dcrbs` 或 `~/.config/dcrbs`。 |
 | `auth_secret.txt`、`password.json` | 舊版遺留檔案；目前程式不讀寫、不再要求其密碼。 |
 
 `/device` 會顯示目前套件版本 `dcrbs 0.0.1`。`packages/` 中既有 ZIP 是舊版本封存檔；新建的 `dcrbs_0.0.1.zip` 是 pip 安裝套件，不會由 `dcrbs.py` 載入。

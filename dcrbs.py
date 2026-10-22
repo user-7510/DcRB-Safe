@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 from dcrbs_command_dispatch import dispatchTextCommands
 from dcrbs_version import __version__
+from dcrbs_runtime.paths import ensureRuntimeFiles, resolveRuntimeDirectory
 
 dcrbsVersion = __version__
 
@@ -225,11 +226,15 @@ def readTokenFromFile(tokenFilePath: str = "dcrbs_token.txt") -> str:
 botInstance = BotRunner(command_prefix="!", intents=discord.Intents.all())
 
 def main(runtime_dir=None):
-    if runtime_dir is None:
-        runtime_dir = os.path.dirname(
-            sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
-        )
-    os.chdir(os.path.abspath(runtime_dir))
+    if runtime_dir is None and getattr(sys, "frozen", False):
+        runtime_dir = os.path.dirname(sys.executable)
+    try:
+        runtime_dir = resolveRuntimeDirectory(runtime_dir)
+        os.chdir(runtime_dir)
+        ensureRuntimeFiles(runtime_dir)
+    except (OSError, ValueError) as errObj:
+        print(f"[錯誤] 無法設定 dcrbs 執行資料夾：{errObj}")
+        return
     print(f"[資訊] 工作目錄設定為: {os.getcwd()}")
     try:
         import dcrbs_access_control
